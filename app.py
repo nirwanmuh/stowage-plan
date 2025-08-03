@@ -1,37 +1,28 @@
 import streamlit as st
-import numpy as np
 
-# Warna untuk setiap golongan
-WARNA = {
-    4: "#1f77b4",
-    5: "#ff7f0e",
-    6: "#2ca02c",
-    7: "#d62728",
-    8: "#9467bd",
-    9: "#8c564b"
-}
-
-ROMAWI = {
-    4: "IV",
-    5: "V",
-    6: "VI",
-    7: "VII",
-    8: "VIII",
-    9: "IX"
-}
-
-# Data kendaraan per golongan: panjang, lebar, berat
+# Data kendaraan: panjang, berat
 KENDARAAN = {
-    4: (6, 2, 2),
-    5: (7, 2, 3),
-    6: (10, 3, 5),
-    7: (12, 3, 7),
-    8: (14, 3, 10),
-    9: (16, 3, 13)
+    4: (6, 2),
+    5: (7, 3),
+    6: (8, 4),
+    7: (10, 5),
+    8: (12, 6),
+    9: (15, 8)
 }
 
-def label_romawi(val):
-    return f"Golongan {ROMAWI[val]}"
+WARNA = {
+    4: "#FF9999",
+    5: "#FFCC99",
+    6: "#FFFF99",
+    7: "#CCFF99",
+    8: "#99FFCC",
+    9: "#99CCFF"
+}
+
+def romawi(val):
+    return {
+        4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX"
+    }[val]
 
 class LantaiKapal:
     def __init__(self, panjang, lebar):
@@ -39,30 +30,41 @@ class LantaiKapal:
         self.lebar = lebar
         self.grid = [[None for _ in range(panjang)] for _ in range(lebar)]
 
-    def bisa_ditempatkan(self, pjg, lbr, baris, kolom):
-        if baris + lbr > self.lebar or kolom + pjg > self.panjang:
-            return False
-        for i in range(baris, baris + lbr):
-            for j in range(kolom, kolom + pjg):
-                if self.grid[i][j] is not None:
-                    return False
-        return True
+    def sisa_kapasitas(self):
+        return sum(1 for baris in self.grid for cell in baris if cell is None)
 
-    def tempatkan(self, golongan, baris, kolom):
-        pjg, lbr, _ = KENDARAAN[golongan]
-        for i in range(baris, baris + lbr):
-            for j in range(kolom, kolom + pjg):
-                self.grid[i][j] = f"G{golongan}"
+    def bisa_muatan(self, golongan):
+        panjang, _ = KENDARAAN[golongan]
+        for r in range(self.lebar):
+            for c in range(self.panjang - panjang + 1):
+                if all(self.grid[r][c + i] is None for i in range(panjang)):
+                    return True
+        return False
 
-    def hapus(self, baris, kolom):
-        nilai = self.grid[baris][kolom]
-        if nilai is None:
-            return False, "Slot kosong"
-        for i in range(self.lebar):
-            for j in range(self.panjang):
-                if self.grid[i][j] == nilai:
-                    self.grid[i][j] = None
-        return True, f"Kendaraan golongan {ROMAWI[int(nilai[1:])]} berhasil dikeluarkan"
+    def muat(self, golongan, id_kendaraan):
+        panjang, _ = KENDARAAN[golongan]
+        for r in range(self.lebar):
+            for c in range(self.panjang - panjang + 1):
+                if all(self.grid[r][c + i] is None for i in range(panjang)):
+                    for i in range(panjang):
+                        self.grid[r][c + i] = (golongan, id_kendaraan)
+                    return True
+        return False
+
+    def total_berat_dan_titik_berat(self):
+        total_berat = 0
+        total_momen = 0
+        for r in range(self.lebar):
+            for c in range(self.panjang):
+                cell = self.grid[r][c]
+                if cell is not None:
+                    gol, _ = cell
+                    berat = KENDARAAN[gol][1]
+                    total_berat += berat
+                    total_momen += berat * (c + 0.5)
+        if total_berat == 0:
+            return 0, 0
+        return total_berat, total_momen / total_berat
 
     def visualisasi(self):
         html_grid = ""
@@ -71,113 +73,65 @@ class LantaiKapal:
                 if cell is None:
                     html_grid += f"<div style='width:30px;height:15px;border:1px solid #ccc;display:inline-block'></div>"
                 else:
-                    gol = int(cell[1:])
-                    html_grid += f"<div style='width:30px;height:15px;background:{WARNA[gol]};display:inline-block;text-align:center;font-size:10px;color:white'>{ROMAWI[gol]}</div>"
+                    gol, _ = cell
+                    html_grid += f"<div style='width:30px;height:15px;background:{WARNA[gol]};display:inline-block;text-align:center;font-size:10px;color:white'>{romawi(gol)}</div>"
             html_grid += "<br>"
         return html_grid
 
-    def muatan_total_dan_titik_berat(self):
-        total_berat = 0
-        total_momen = 0
-        for i in range(self.lebar):
-            for j in range(self.panjang):
-                cell = self.grid[i][j]
-                if cell is not None:
-                    gol = int(cell[1:])
-                    berat = KENDARAAN[gol][2]
-                    total_berat += berat
-                    total_momen += berat * (j + 0.5)
-        if total_berat == 0:
-            return 0, 0
-        return total_berat, total_momen / total_berat
-
 class Kapal:
-    def __init__(self, data_lantai):
-        self.lantai = [LantaiKapal(p, l) for p, l in data_lantai]
+    def __init__(self, list_dimensi):
+        self.lantai = [LantaiKapal(p, l) for (p, l) in list_dimensi]
+        self.id_kendaraan = 0
 
     def tambah_kendaraan(self, golongan):
-        pjg, lbr, _ = KENDARAAN[golongan]
-        lantai_prioritas = list(range(1, len(self.lantai))) + [0] if golongan in [4, 5] else [0]
-        for idx in lantai_prioritas:
+        panjang, berat = KENDARAAN[golongan]
+        urutan = range(len(self.lantai)) if golongan < 6 else [0]
+        for idx in urutan:
             lantai = self.lantai[idx]
-            for i in range(lantai.lebar):
-                for j in range(lantai.panjang):
-                    if lantai.bisa_ditempatkan(pjg, lbr, i, j):
-                        lantai.tempatkan(golongan, i, j)
-                        return f"Kendaraan golongan {ROMAWI[golongan]} berhasil ditempatkan di Lantai {idx+1}"
-        return f"Tidak ada ruang tersedia untuk golongan {ROMAWI[golongan]}"
-
-    def keluarkan_kendaraan(self, idx_lantai, baris, kolom):
-        return self.lantai[idx_lantai].hapus(baris, kolom)
+            if lantai.bisa_muatan(golongan):
+                self.id_kendaraan += 1
+                lantai.muat(golongan, self.id_kendaraan)
+                return f"Kendaraan golongan {romawi(golongan)} berhasil dimuat di lantai {idx + 1}"
+        return f"Tidak ada ruang untuk kendaraan golongan {romawi(golongan)}"
 
     def visualisasi(self):
-        vis = ""
         for i, lantai in enumerate(self.lantai):
-            vis += f"<div style='display:inline-block;margin-right:20px'>"
-            vis += f"<h4 style='text-align:center'>Lantai {i+1}</h4>"
-            vis += lantai.visualisasi()
-            total_berat, titik_berat = lantai.muatan_total_dan_titik_berat()
-            vis += f"<p>Total Berat: {total_berat}</p><p>Titik Berat Horisontal: {titik_berat:.2f} / {lantai.panjang}</p>"
-            vis += "</div>"
-        return vis
+            st.markdown(f"### Lantai {i + 1}")
+            st.markdown(lantai.visualisasi(), unsafe_allow_html=True)
+            berat, titik = lantai.total_berat_dan_titik_berat()
+            st.write(f"Total berat: {berat} | Titik berat (X): {titik:.2f} dari {self.lantai[i].panjang}")
 
-def get_kemungkinan_sisa():
-    sisa = {k: 0 for k in KENDARAAN}
-    for g in KENDARAAN:
-        for _ in range(100):
-            hasil = st.session_state.kapal.tambah_kendaraan(g)
-            if "berhasil" in hasil:
-                sisa[g] += 1
-            else:
-                break
-    return sisa
-
-st.set_page_config(layout="wide")
-st.title("Simulasi Muat Kapal dengan Titik Berat Seimbang")
+# Streamlit app
+st.title("Simulasi Pemanfaatan Kapal untuk Kendaraan")
 
 if "kapal" not in st.session_state:
     st.session_state.kapal = None
-
-if "input_lantai" not in st.session_state:
     st.session_state.input_lantai = []
 
-st.sidebar.markdown("### Konfigurasi Kapal")
-jumlah = st.sidebar.number_input("Jumlah Lantai", 1, 5, 2)
-st.session_state.input_lantai = []
-for i in range(jumlah):
-    p = st.sidebar.number_input(f"Panjang Lantai {i+1}", 10, 100, 30, key=f"pjg{i}")
-    l = st.sidebar.number_input(f"Lebar Lantai {i+1}", 2, 10, 4, key=f"lbr{i}")
-    st.session_state.input_lantai.append((p, l))
+with st.sidebar:
+    st.markdown("## Konfigurasi Kapal")
+    panjang = st.number_input("Panjang lantai", min_value=5, max_value=100, value=30)
+    lebar = st.number_input("Lebar lantai", min_value=1, max_value=10, value=3)
+    if st.button("Tambah Lantai"):
+        st.session_state.input_lantai.append((panjang, lebar))
 
-if st.sidebar.button("Mulai"):
-    st.session_state.kapal = Kapal(st.session_state.input_lantai)
-    st.rerun()
+    if st.button("Mulai" ):
+        st.session_state.kapal = Kapal(st.session_state.input_lantai)
+        st.rerun()
 
-if st.session_state.kapal:
-    st.sidebar.markdown("### 🚗 Tambah Kendaraan")
-    gol = st.sidebar.selectbox("Golongan Kendaraan", list(KENDARAAN.keys()), format_func=label_romawi)
+if st.session_state.kapal is not None:
+    st.sidebar.markdown("## Tambah Kendaraan")
+    gol = st.sidebar.selectbox("Golongan Kendaraan", list(KENDARAAN.keys()), format_func=romawi)
     if st.sidebar.button("Tambah"):
         hasil = st.session_state.kapal.tambah_kendaraan(gol)
         st.success(hasil)
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### ❌ Keluarkan Kendaraan")
-    idx = st.sidebar.number_input("Lantai", 1, jumlah, 1) - 1
-    bar = st.sidebar.number_input("Baris", 0, 100, 0)
-    kol = st.sidebar.number_input("Kolom", 0, 100, 0)
-    if st.sidebar.button("Keluarkan"):
-        ok, pesan = st.session_state.kapal.keluarkan_kendaraan(idx, bar, kol)
-        if ok:
-            st.success(pesan)
-        else:
-            st.error(pesan)
+    st.sidebar.markdown("## Sisa Kapasitas Tiap Lantai")
+    for i, lantai in enumerate(st.session_state.kapal.lantai):
+        sisa = lantai.sisa_kapasitas()
+        st.sidebar.write(f"Lantai {i + 1}: {sisa} slot kosong")
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📊 Kapasitas Tersisa per Golongan")
-    sisa = get_kemungkinan_sisa()
-    for g in sisa:
-        st.sidebar.write(f"Golongan {ROMAWI[g]}: {sisa[g]} unit")
-
-    st.markdown(st.session_state.kapal.visualisasi(), unsafe_allow_html=True)
+    st.header("Visualisasi Kapal")
+    st.session_state.kapal.visualisasi()
 else:
-    st.info("Klik 'Mulai' untuk memulai simulasi.")
+    st.info("Silakan konfigurasi kapal di sidebar dan klik 'Mulai'")
