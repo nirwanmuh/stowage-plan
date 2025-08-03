@@ -1,106 +1,146 @@
 import streamlit as st
 import numpy as np
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Simulasi Pemuatan Kapal", layout="wide")
+st.set_page_config(layout="wide")
 
-# Sidebar input konfigurasi kapal
-st.sidebar.header("Konfigurasi Kapal")
-if "konfigurasi_done" not in st.session_state:
-    st.session_state.kendaraan_list = []
-    st.session_state.konfigurasi_done = False
-    st.session_state.grid_kapal = []
-
-lantai_count = st.sidebar.number_input("Jumlah Lantai", min_value=1, max_value=3, value=1)
-lantai_defs = []
-for i in range(lantai_count):
-    st.sidebar.markdown(f"**Lantai {i+1}**")
-    panjang = st.sidebar.number_input(f"Panjang Lantai {i+1} (grid)", min_value=5, value=10, key=f"p{i}_panjang")
-    lebar = st.sidebar.number_input(f"Lebar Lantai {i+1} (grid)", min_value=2, value=5, key=f"p{i}_lebar")
-    lantai_defs.append((panjang, lebar))
-
-if st.sidebar.button("Set Konfigurasi") or not st.session_state.konfigurasi_done:
-    st.session_state.grid_kapal = [np.zeros((p, l), dtype=int) for p, l in lantai_defs]
-    st.session_state.kendaraan_list = []
-    st.session_state.konfigurasi_done = True
-
-# Sidebar input kendaraan
-st.sidebar.header("Input Kendaraan")
-golongan_map = {
-    "IV": (2, 1, 4000),
-    "V": (2, 2, 5000),
-    "VI": (3, 2, 7000),
-    "VII": (3, 3, 9000),
-    "VIII": (4, 3, 12000),
-    "IX": (4, 4, 15000)
+# ----------------------------
+# Konfigurasi Golongan Kendaraan
+# ----------------------------
+GOLONGAN = {
+    "IV": {"panjang": 2, "lebar": 1, "berat": 3},
+    "V": {"panjang": 2, "lebar": 2, "berat": 4},
+    "VI": {"panjang": 3, "lebar": 2, "berat": 5},
+    "VII": {"panjang": 4, "lebar": 2, "berat": 6},
+    "VIII": {"panjang": 5, "lebar": 2, "berat": 8},
+    "IX": {"panjang": 6, "lebar": 3, "berat": 10},
 }
-golongan_input = st.sidebar.selectbox("Golongan Kendaraan", list(golongan_map.keys()))
 
-if st.sidebar.button("Tambah Kendaraan"):
-    panjang, lebar, berat = golongan_map[golongan_input]
-    kapal_lantai = st.session_state.grid_kapal
+# ----------------------------
+# Kelas Lantai dan Kapal
+# ----------------------------
+class Lantai:
+    def __init__(self, panjang, lebar, nama):
+        self.panjang = panjang
+        self.lebar = lebar
+        self.grid = np.zeros((panjang, lebar), dtype=int)
+        self.nama = nama
+        self.kendaraan = []
 
-    # Cari posisi mulai dari tengah lantai
-    for lantai_idx, grid in enumerate(kapal_lantai):
-        g_p, g_l = grid.shape
-        mid_x, mid_y = g_p // 2, g_l // 2
+    def muat(self, golongan):
+        k = GOLONGAN[golongan]
+        center_i = self.panjang // 2
+        center_j = self.lebar // 2
 
-        found = False
-        for i in range(mid_x - g_p//2, mid_x + g_p//2):
-            for j in range(mid_y - g_l//2, mid_y + g_l//2):
-                if i < 0 or j < 0 or i+panjang > g_p or j+lebar > g_l:
-                    continue
-                if np.all(grid[i:i+panjang, j:j+lebar] == 0):
-                    grid[i:i+panjang, j:j+lebar] = len(st.session_state.kendaraan_list) + 1
-                    st.session_state.kendaraan_list.append({
-                        "lantai": lantai_idx,
-                        "x": i,
-                        "y": j,
-                        "panjang": panjang,
-                        "lebar": lebar,
-                        "berat": berat
-                    })
-                    found = True
-                    break
-            if found:
-                break
+        posisi_diperiksa = []
+        for di in range(self.panjang):
+            for dj in range(self.lebar):
+                i = center_i + (-1)**(di % 2) * (di // 2)
+                j = center_j + (-1)**(dj % 2) * (dj // 2)
+                if 0 <= i <= self.panjang - k["panjang"] and 0 <= j <= self.lebar - k["lebar"]:
+                    posisi_diperiksa.append((i, j))
 
-# Visualisasi lantai
-st.title("Visualisasi Pemuatan Kapal")
-for idx, grid in enumerate(st.session_state.grid_kapal):
-    st.markdown(f"### Lantai {idx+1}")
-    grid_display = ""
-    for row in grid:
-        grid_display += "".join([f"[{int(val):02}]" if val > 0 else "[  ]" for val in row]) + "\n"
-    st.text(grid_display)
+        for i, j in posisi_diperiksa:
+            if np.all(self.grid[i:i + k["panjang"], j:j + k["lebar"]] == 0):
+                self.grid[i:i + k["panjang"], j:j + k["lebar"]] = len(self.kendaraan) + 1
+                self.kendaraan.append((golongan, i, j))
+                return True
+        return False
 
-# Hitung keseimbangan
-st.sidebar.header("Informasi Keseimbangan")
-total_berat = 0
-sum_x = 0
-sum_y = 0
-for k in st.session_state.kendaraan_list:
-    grid_p, grid_l = lantai_defs[k["lantai"]]
-    x_tengah = k["x"] + k["panjang"] / 2
-    y_tengah = k["y"] + k["lebar"] / 2
-    total_berat += k["berat"]
-    sum_x += k["berat"] * x_tengah
-    sum_y += k["berat"] * y_tengah
+    def total_berat(self):
+        return sum(GOLONGAN[k][“berat”] for k, _, _ in self.kendaraan)
 
-if total_berat > 0:
-    center_x = sum_x / total_berat
-    center_y = sum_y / total_berat
-else:
-    center_x, center_y = 0, 0
+    def hapus_semua(self):
+        self.grid[:, :] = 0
+        self.kendaraan = []
 
-ideal_x = np.mean([p / 2 for p, _ in lantai_defs])
-ideal_y = np.mean([l / 2 for _, l in lantai_defs])
+class Kapal:
+    def __init__(self, lantai_defs):
+        self.lantai_list = [Lantai(**d, nama=f"Lantai {i+1}") for i, d in enumerate(lantai_defs)]
+        self.riwayat_kendaraan = []
 
-st.sidebar.markdown(f"**Titik Berat Aktual**: ({center_x:.2f}, {center_y:.2f})")
-st.sidebar.markdown(f"**Titik Ideal**: ({ideal_x:.2f}, {ideal_y:.2f})")
-st.sidebar.markdown(f"**Deviasi Horizontal**: {center_x - ideal_x:.2f}")
-st.sidebar.markdown(f"**Deviasi Vertikal**: {center_y - ideal_y:.2f}")
+    def tambah_kendaraan(self, golongan):
+        # Reset semua
+        self.riwayat_kendaraan.append(golongan)
+        self.reoptimalkan()
 
-# Informasi kendaraan
-st.sidebar.header("Daftar Kendaraan")
-for idx, k in enumerate(st.session_state.kendaraan_list):
-    st.sidebar.markdown(f"{idx+1}. Gol {k['panjang']}x{k['lebar']} Berat: {k['berat']} kg (Lantai {k['lantai']+1})")
+    def reoptimalkan(self):
+        for lantai in self.lantai_list:
+            lantai.hapus_semua()
+
+        for golongan in self.riwayat_kendaraan:
+            if golongan in ("VI", "VII", "VIII", "IX"):
+                idx = 0  # Lantai bawah
+                self.lantai_list[idx].muat(golongan)
+            else:
+                # Golongan IV dan V
+                ditempatkan = False
+                for idx in range(1, len(self.lantai_list)):
+                    if self.lantai_list[idx].muat(golongan):
+                        ditempatkan = True
+                        break
+                if not ditempatkan:
+                    self.lantai_list[0].muat(golongan)
+
+    def keluarkan_terakhir(self):
+        if self.riwayat_kendaraan:
+            self.riwayat_kendaraan.pop()
+            self.reoptimalkan()
+
+    def info_kapasitas(self):
+        total = sum(l.panjang * l.lebar for l in self.lantai_list)
+        terpakai = sum(len(l.kendaraan) for l in self.lantai_list)
+        return f"{terpakai} slot terpakai dari {total} slot"
+
+# ----------------------------
+# Streamlit Sidebar
+# ----------------------------
+if "lantai_defs" not in st.session_state:
+    st.session_state.lantai_defs = []
+
+st.sidebar.header("Konfigurasi Kapal")
+with st.sidebar.expander("🛠️ Tambah Lantai"):
+    panjang = st.number_input("Panjang (grid)", 5, 50, 10)
+    lebar = st.number_input("Lebar (grid)", 2, 10, 4)
+    if st.button("Tambah Lantai"):
+        st.session_state.lantai_defs.append({"panjang": panjang, "lebar": lebar})
+
+if st.sidebar.button("Reset Kapal"):
+    st.session_state.lantai_defs = []
+    st.session_state.kapal = None
+
+# ----------------------------
+# Inisialisasi Kapal
+# ----------------------------
+if st.session_state.lantai_defs:
+    if "kapal" not in st.session_state or st.session_state.kapal is None:
+        st.session_state.kapal = Kapal(st.session_state.lantai_defs)
+
+    kapal: Kapal = st.session_state.kapal
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Tambah Kendaraan")
+    golongan_input = st.sidebar.selectbox("Pilih Golongan", list(GOLONGAN.keys()))
+    if st.sidebar.button("Tambah Kendaraan"):
+        kapal.tambah_kendaraan(golongan_input)
+
+    if st.sidebar.button("Keluarkan Terakhir"):
+        kapal.keluarkan_terakhir()
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(f"**{kapal.info_kapasitas()}**")
+
+# ----------------------------
+# Visualisasi Kapal
+# ----------------------------
+if st.session_state.lantai_defs:
+    st.title("🚢 Visualisasi Muatan Kapal")
+    col_viz = st.columns(len(kapal.lantai_list))
+
+    for col, lantai in zip(col_viz, kapal.lantai_list):
+        fig, ax = plt.subplots()
+        ax.imshow(lantai.grid, cmap='tab20', origin='upper')
+        ax.set_title(f"{lantai.nama}")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        col.pyplot(fig)
