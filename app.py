@@ -48,7 +48,7 @@ class Lantai:
         return False
 
     def total_berat(self):
-        return sum(GOLONGAN[k][“berat”] for k, _, _ in self.kendaraan)
+        return sum(GOLONGAN[k]["berat"] for k, _, _ in self.kendaraan)
 
     def hapus_semua(self):
         self.grid[:, :] = 0
