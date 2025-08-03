@@ -95,3 +95,139 @@ class Kapal:
         else:
             ok, msg = self.lantai_list[0].tambah_kendaraan(gol, berat)
             return f"(Lantai 1) {msg}"
+
+    def keluarkan_kendaraan(self, gol):
+        if gol in [4, 5]:
+            ok, msg = self.lantai_list[0].keluarkan_kendaraan(gol)
+            if ok:
+                return True, f"(Lantai 1) {msg}"
+            for idx in range(1, len(self.lantai_list)):
+                ok, msg = self.lantai_list[idx].keluarkan_kendaraan(gol)
+                if ok:
+                    return True, f"(Lantai {idx+1}) {msg}"
+            return False, f"Tidak ada kendaraan golongan {ROMAWI[gol]} ditemukan di kapal."
+        else:
+            ok, msg = self.lantai_list[0].keluarkan_kendaraan(gol)
+            if ok:
+                return True, f"(Lantai 1) {msg}"
+            return False, f"Tidak ada kendaraan golongan {ROMAWI[gol]} ditemukan di lantai 1."
+
+    def visualisasi(self):
+        st.markdown("<h3 style='text-align:center;'>Visualisasi Lantai Kapal</h3>", unsafe_allow_html=True)
+        layout = st.columns(len(self.lantai_list))
+        for idx, lantai in enumerate(self.lantai_list):
+            with layout[idx]:
+                st.markdown(f"<b>Lantai {idx+1}</b>", unsafe_allow_html=True)
+                html_grid = "<div style='display:grid; grid-template-columns: repeat(%d, 30px); gap:1px;'>" % (lantai.slot_count)
+                for row in lantai.grid:
+                    for cell in row:
+                        if cell is None:
+                            html_grid += "<div style='width:30px;height:15px;background:#ddd;'></div>"
+                        else:
+                            label, _ = cell
+                            gol = next((k for k, v in ROMAWI.items() if v == label[1:]), 4)
+                            html_grid += f"<div style='width:30px;height:15px;background:{WARNA[gol]};text-align:center;font-size:10px;color:white'>{label}</div>"
+                html_grid += "</div>"
+                st.markdown(html_grid, unsafe_allow_html=True)
+
+    def get_center_of_gravity(self):
+        total_berat = 0
+        total_x_moment = 0
+        total_y_moment = 0
+
+        for lantai in self.lantai_list:
+            cols = lantai.slot_count
+            rows = lantai.panjang
+            for y in range(rows):
+                for x in range(cols):
+                    cell = lantai.grid[y][x]
+                    if cell:
+                        _, berat = cell
+                        total_berat += berat
+                        total_x_moment += (x + 0.5) * berat
+                        total_y_moment += (y + 0.5) * berat
+
+        if total_berat == 0:
+            return 0.0, 0.0
+
+        ref_x = self.lantai_list[0].slot_count / 2
+        ref_y = self.lantai_list[0].panjang / 2
+
+        cog_x = total_x_moment / total_berat
+        cog_y = total_y_moment / total_berat
+
+        offset_x = (cog_x - ref_x) / ref_x
+        offset_y = (cog_y - ref_y) / ref_y
+
+        return round(offset_x, 2), round(offset_y, 2)
+
+# Streamlit session init
+if "kapal" not in st.session_state:
+    st.session_state.kapal = None
+
+if "input_lantai" not in st.session_state:
+    st.session_state.input_lantai = []
+
+# Sidebar Input
+st.sidebar.header("Pengaturan Kapal")
+
+if st.session_state.kapal is None:
+    jumlah = st.sidebar.number_input("Jumlah lantai kapal", min_value=1, max_value=5, value=2)
+    if len(st.session_state.input_lantai) != jumlah:
+        st.session_state.input_lantai = [{"panjang": 30, "lebar": 9} for _ in range(jumlah)]
+
+    for i in range(jumlah):
+        st.sidebar.markdown(f"**Lantai {i+1}**")
+        st.session_state.input_lantai[i]["panjang"] = st.sidebar.number_input(
+            f"Panjang Lantai {i+1} (meter)", min_value=1, max_value=200, value=st.session_state.input_lantai[i]["panjang"], key=f"p_{i}")
+        st.session_state.input_lantai[i]["lebar"] = st.sidebar.number_input(
+            f"Lebar Lantai {i+1} (meter)", min_value=3, max_value=30, value=st.session_state.input_lantai[i]["lebar"], key=f"l_{i}")
+
+    if st.sidebar.button("Mulai"):
+        data = [(d["panjang"], d["lebar"]) for d in st.session_state.input_lantai]
+        st.session_state.kapal = Kapal(data)
+        st.rerun()
+else:
+    st.sidebar.success("Kapal aktif ✅")
+    if st.sidebar.button("Reset"):
+        st.session_state.kapal = None
+        st.rerun()
+
+    st.sidebar.markdown("### 🚗 Tambah Kendaraan")
+    gol = st.sidebar.selectbox("Golongan Kendaraan", list(KENDARAAN.keys()), format_func=lambda x: f"{ROMAWI[x]} (G{x})")
+    berat = st.sidebar.number_input("Berat Kendaraan (kg)", min_value=100, max_value=60000, value=3000, step=100)
+    if st.sidebar.button("Tambah"):
+        hasil = st.session_state.kapal.tambah_kendaraan(gol, berat)
+        st.success(hasil)
+
+    st.sidebar.markdown("### ❌ Keluarkan Kendaraan")
+    gol_del = st.sidebar.selectbox("Pilih Golongan yang Akan Dikeluarkan", list(KENDARAAN.keys()), format_func=lambda x: f"{ROMAWI[x]} (G{x})")
+    if st.sidebar.button("Keluarkan"):
+        ok, msg = st.session_state.kapal.keluarkan_kendaraan(gol_del)
+        if ok:
+            st.success(msg)
+        else:
+            st.error(msg)
+
+    st.sidebar.markdown("### ℹ️ Info Sisa Muat")
+    for i, lantai in enumerate(st.session_state.kapal.lantai_list):
+        st.sidebar.markdown(f"**Lantai {i+1}**")
+        sisa = lantai.get_kemungkinan_sisa()
+        for g in sorted(sisa.keys()):
+            if g >= 6 and i > 0:
+                continue
+            st.sidebar.write(f"Gol {ROMAWI[g]}: {sisa[g]} unit")
+
+    st.sidebar.markdown("### 📦 Keseimbangan Kapal")
+    offset_x, offset_y = st.session_state.kapal.get_center_of_gravity()
+    arah_x = "kanan" if offset_x > 0 else "kiri" if offset_x < 0 else "tengah"
+    arah_y = "belakang" if offset_y > 0 else "depan" if offset_y < 0 else "tengah"
+    st.sidebar.write(f"- Titik Berat Horizontal: {offset_x:+.2f} ({arah_x})")
+    st.sidebar.write(f"- Titik Berat Vertikal: {offset_y:+.2f} ({arah_y})")
+    if abs(offset_x) < 0.3 and abs(offset_y) < 0.3:
+        st.sidebar.success("⚖️ Seimbang")
+    else:
+        st.sidebar.warning("⚠️ Tidak Seimbang")
+
+    st.divider()
+    st.session_state.kapal.visualisasi()
