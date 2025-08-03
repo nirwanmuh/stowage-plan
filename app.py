@@ -1,7 +1,6 @@
 import streamlit as st
 
 st.set_page_config(page_title="Dynamic Quota", layout="centered")
-st.title("Dynamic Quota")
 
 KENDARAAN = {
     4: 5,
@@ -61,24 +60,6 @@ class LantaiKapal:
                         self.grid[row_index + j][kolom_index] = '.'
                     return True, f"Kendaraan golongan {ROMAWI[gol]} berhasil dikeluarkan dari Slot {kolom_index+1}"
         return False, f"Tidak ada kendaraan golongan {ROMAWI[gol]} ditemukan di lantai ini."
-
-    def get_kemungkinan_sisa(self):
-        sisa = {gol: 0 for gol in KENDARAAN.keys()}
-
-        for i in range(self.slot_count):
-            row = self.panjang - 1
-            while row >= 0:
-                if self.grid[row][i] == '.':
-                    kosong = 0
-                    while row >= 0 and self.grid[row][i] == '.':
-                        kosong += 1
-                        row -= 1
-                    for gol, panjang in KENDARAAN.items():
-                        if kosong >= panjang:
-                            sisa[gol] += kosong // panjang
-                else:
-                    row -= 1
-        return sisa
 
     def titik_berat(self):
         total_berat = 0
@@ -145,29 +126,44 @@ class Kapal:
                 html_grid += "</div>"
                 st.markdown(html_grid, unsafe_allow_html=True)
 
-        # Hitung titik berat total kapal
+        # Hitung keseimbangan
         total_berat = 0
         total_x = 0
         total_y = 0
-        max_slot = max([l.slot_count for l in self.lantai_list])
-        max_panjang = max([l.panjang for l in self.lantai_list])
-
-        for lantai in self.lantai_list:
+        total_z = 0
+        for idx, lantai in enumerate(self.lantai_list):
             result = lantai.titik_berat()
             if result:
                 x, y, berat = result
+                z = idx * 100  # asumsi tinggi antar lantai 100 unit
                 total_berat += berat
                 total_x += x * berat
                 total_y += y * berat
+                total_z += z * berat
 
         if total_berat > 0:
             x_cog = total_x / total_berat
             y_cog = total_y / total_berat
-            tengah_x = max_slot / 2
-            tengah_y = max_panjang / 2
-            st.info(f"Titik berat kapal: x = {x_cog:.2f}, y = {y_cog:.2f}")
-            st.success(f"Titik tengah ideal: x = {tengah_x:.2f}, y = {tengah_y:.2f}")
-            if abs(x_cog - tengah_x) < 1 and abs(y_cog - tengah_y) < 1:
-                st.success("Kapal dalam kondisi seimbang.")
-            else:
-                st.warning("Kapal tidak seimbang. Perlu penyesuaian muatan.")
+            z_cog = total_z / total_berat
+            st.info(f"Titik berat kapal: x = {x_cog:.2f} (horizontal), y = {y_cog:.2f} (depan-belakang), z = {z_cog:.2f} (tinggi/lantai)")
+
+# Sidebar kontrol
+with st.sidebar:
+    st.header("Kontrol Kapal")
+    panjang = st.number_input("Panjang Lantai", min_value=5, value=20)
+    lebar = st.number_input("Lebar Lantai", min_value=3, value=15, step=3)
+    jumlah_lantai = st.selectbox("Jumlah Lantai", [1, 2, 3])
+    st.session_state.setdefault('kapal', Kapal([(panjang, lebar)] * jumlah_lantai))
+    pilih = st.selectbox("Pilih Golongan Kendaraan", list(ROMAWI.keys()), format_func=lambda x: f"Golongan {ROMAWI[x]}")
+    if st.button("Tambah Kendaraan"):
+        msg = st.session_state.kapal.tambah_kendaraan(pilih)
+        st.success(msg)
+    if st.button("Keluarkan Kendaraan"):
+        ok, msg = st.session_state.kapal.keluarkan_kendaraan(pilih)
+        if ok:
+            st.success(msg)
+        else:
+            st.warning(msg)
+
+# Visualisasi
+st.session_state.kapal.visualisasi()
