@@ -48,7 +48,12 @@ class LantaiKapal:
 
         # Cari semua posisi memungkinkan
         for i in range(self.slot_count):
-            for start_row in range(self.panjang - panjang_kendaraan + 1):
+            center_row = self.panjang / 2
+            row_candidates = sorted(
+                range(self.panjang - panjang_kendaraan + 1),
+                key=lambda r: abs((r + panjang_kendaraan / 2) - center_row)
+            )
+            for start_row in row_candidates:
                 if all(self.grid[start_row + j][i] is None for j in range(panjang_kendaraan)):
                     # Simulasikan penempatan
                     total_berat = berat
