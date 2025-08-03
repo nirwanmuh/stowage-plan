@@ -129,14 +129,12 @@ class Kapal:
                 html_grid += "</div>"
                 st.markdown(html_grid, unsafe_allow_html=True)
 
-# Streamlit session init
 if "kapal" not in st.session_state:
     st.session_state.kapal = None
 
 if "input_lantai" not in st.session_state:
     st.session_state.input_lantai = []
 
-# Sidebar Input
 st.sidebar.header("Pengaturan Kapal")
 
 if st.session_state.kapal is None:
@@ -147,9 +145,11 @@ if st.session_state.kapal is None:
     for i in range(jumlah):
         st.sidebar.markdown(f"**Lantai {i+1}**")
         st.session_state.input_lantai[i]["panjang"] = st.sidebar.number_input(
-            f"Panjang Lantai {i+1} (meter)", min_value=1, max_value=200, value=st.session_state.input_lantai[i]["panjang"], key=f"p_{i}")
+            f"Panjang Lantai {i+1} (meter)", min_value=1, max_value=200,
+            value=st.session_state.input_lantai[i]["panjang"], key=f"p_{i}")
         st.session_state.input_lantai[i]["lebar"] = st.sidebar.number_input(
-            f"Lebar Lantai {i+1} (meter)", min_value=3, max_value=30, value=st.session_state.input_lantai[i]["lebar"], key=f"l_{i}")
+            f"Lebar Lantai {i+1} (meter)", min_value=3, max_value=30,
+            value=st.session_state.input_lantai[i]["lebar"], key=f"l_{i}")
 
     if st.sidebar.button("Mulai"):
         data = [(d["panjang"], d["lebar"]) for d in st.session_state.input_lantai]
@@ -162,13 +162,15 @@ else:
         st.rerun()
 
     st.sidebar.markdown("### 🚗 Tambah Kendaraan")
-    gol = st.sidebar.selectbox("Golongan Kendaraan", list(KENDARAAN.keys()), format_func=lambda x: f"{ROMAWI[x]} (G{x})")
+    gol = st.sidebar.selectbox("Golongan Kendaraan", list(KENDARAAN.keys()),
+                                format_func=lambda x: f"{ROMAWI[x]} (G{x})")
     if st.sidebar.button("Tambah"):
         hasil = st.session_state.kapal.tambah_kendaraan(gol)
         st.success(hasil)
 
     st.sidebar.markdown("### ❌ Keluarkan Kendaraan")
-    gol_del = st.sidebar.selectbox("Pilih Golongan yang Akan Dikeluarkan", list(KENDARAAN.keys()), format_func=lambda x: f"{ROMAWI[x]} (G{x})")
+    gol_del = st.sidebar.selectbox("Pilih Golongan yang Akan Dikeluarkan", list(KENDARAAN.keys()),
+                                    format_func=lambda x: f"{ROMAWI[x]} (G{x})")
     if st.sidebar.button("Keluarkan"):
         ok, msg = st.session_state.kapal.keluarkan_kendaraan(gol_del)
         if ok:
