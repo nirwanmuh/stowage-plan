@@ -40,16 +40,51 @@ class LantaiKapal:
     def tambah_kendaraan(self, gol, berat):
         panjang_kendaraan = KENDARAAN[gol]
         label = f"G{ROMAWI[gol]}"
-        center = self.slot_count / 2
-        kolom_prioritas = sorted(range(self.slot_count), key=lambda i: abs(i - center))
+        center_x = self.slot_count / 2
+        center_y = self.panjang / 2
 
-        for i in kolom_prioritas:
-            for start_row in range(self.panjang - panjang_kendaraan, -1, -1):
+        best_offset = float("inf")
+        best_pos = None
+
+        # Cari semua posisi memungkinkan
+        for i in range(self.slot_count):
+            for start_row in range(self.panjang - panjang_kendaraan + 1):
                 if all(self.grid[start_row + j][i] is None for j in range(panjang_kendaraan)):
-                    for j in range(panjang_kendaraan):
-                        self.grid[start_row + j][i] = (label, berat)
-                    return True, f"Slot {i+1}"
-        return False, f"Tidak cukup ruang"
+                    # Simulasikan penempatan
+                    total_berat = berat
+                    total_x_moment = (i + 0.5) * berat
+                    total_y_moment = sum((start_row + j + 0.5) * berat for j in range(panjang_kendaraan))
+
+                    # Tambahkan beban yang sudah ada
+                    for y in range(self.panjang):
+                        for x in range(self.slot_count):
+                            cell = self.grid[y][x]
+                            if cell:
+                                _, b = cell
+                                total_berat += b
+                                total_x_moment += (x + 0.5) * b
+                                total_y_moment += (y + 0.5) * b
+
+                    if total_berat == 0:
+                        continue
+
+                    cog_x = total_x_moment / total_berat
+                    cog_y = total_y_moment / total_berat
+
+                    offset_x = abs((cog_x - center_x) / center_x)
+                    offset_y = abs((cog_y - center_y) / center_y)
+                    total_offset = offset_x + offset_y
+
+                    if total_offset < best_offset:
+                        best_offset = total_offset
+                        best_pos = (i, start_row)
+
+        if best_pos:
+            i, start_row = best_pos
+            for j in range(panjang_kendaraan):
+                self.grid[start_row + j][i] = (label, berat)
+            return True, f"Slot {i+1}"
+        return False, "Tidak cukup ruang"
 
     def keluarkan_kendaraan(self, gol):
         label = f"G{ROMAWI[gol]}"
