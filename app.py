@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="Dynamic Quota", layout="centered")
+st.set_page_config(page_title="Dynamic Quota", layout="wide")
 st.title("Dynamic Quota")
 
 KENDARAAN = {
@@ -88,45 +88,41 @@ class LantaiKapal:
             for x, cell in enumerate(row):
                 if cell != '.':
                     gol = next((g for g, r in ROMAWI.items() if f"G{r}" == cell), 4)
-                    berat = gol * 1000  # bobot asumsi
+                    berat = gol * 1000
                     total_berat += berat
                     total_x += x * berat
                     total_y += y * berat
         if total_berat == 0:
             return None
-        return total_x / total_berat, total_y / total_berat
+        return total_x / total_berat, total_y / total_berat, total_berat
+
+    def kosongkan(self):
+        self.grid = [['.' for _ in range(self.slot_count)] for _ in range(self.panjang)]
 
 class Kapal:
     def __init__(self, lantai_defs):
+        self.lantai_defs = lantai_defs
         self.lantai_list = [LantaiKapal(p, l) for p, l in lantai_defs]
+        self.kendaraan_list = []
+
+    def reset(self):
+        self.lantai_list = [LantaiKapal(p, l) for p, l in self.lantai_defs]
 
     def tambah_kendaraan(self, gol):
-        if gol in [4, 5]:
-            for idx in range(1, len(self.lantai_list)):
-                ok, msg = self.lantai_list[idx].tambah_kendaraan(gol)
-                if ok:
-                    return f"(Lantai {idx+1}) {msg}"
-            ok, msg = self.lantai_list[0].tambah_kendaraan(gol)
-            return f"(Lantai 1) {msg}"
-        else:
-            ok, msg = self.lantai_list[0].tambah_kendaraan(gol)
-            return f"(Lantai 1) {msg}"
+        self.kendaraan_list.append(gol)
+        self.reset()
+        for gol in self.kendaraan_list:
+            self._atur_kendaraan(gol)
 
-    def keluarkan_kendaraan(self, gol):
+    def _atur_kendaraan(self, gol):
         if gol in [4, 5]:
-            ok, msg = self.lantai_list[0].keluarkan_kendaraan(gol)
-            if ok:
-                return True, f"(Lantai 1) {msg}"
             for idx in range(1, len(self.lantai_list)):
-                ok, msg = self.lantai_list[idx].keluarkan_kendaraan(gol)
+                ok, _ = self.lantai_list[idx].tambah_kendaraan(gol)
                 if ok:
-                    return True, f"(Lantai {idx+1}) {msg}"
-            return False, f"Tidak ada kendaraan golongan {ROMAWI[gol]} ditemukan di kapal."
+                    return
+            self.lantai_list[0].tambah_kendaraan(gol)
         else:
-            ok, msg = self.lantai_list[0].keluarkan_kendaraan(gol)
-            if ok:
-                return True, f"(Lantai 1) {msg}"
-            return False, f"Tidak ada kendaraan golongan {ROMAWI[gol]} ditemukan di lantai 1."
+            self.lantai_list[0].tambah_kendaraan(gol)
 
     def visualisasi(self):
         st.markdown("<h3 style='text-align:center;'>Visualisasi Lantai Kapal</h3>", unsafe_allow_html=True)
@@ -145,20 +141,50 @@ class Kapal:
                 html_grid += "</div>"
                 st.markdown(html_grid, unsafe_allow_html=True)
 
-        # Tampilkan keseimbangan
         total_berat = 0
         total_x = 0
         total_y = 0
         for lantai in self.lantai_list:
             result = lantai.titik_berat()
             if result:
-                x, y = result
-                berat_lantai = sum([g * 1000 for row in lantai.grid for g, r in ROMAWI.items() if any(cell == f"G{r}" for cell in row)])
-                total_berat += berat_lantai
-                total_x += x * berat_lantai
-                total_y += y * berat_lantai
+                x, y, berat = result
+                total_berat += berat
+                total_x += x * berat
+                total_y += y * berat
 
         if total_berat > 0:
             x_cog = total_x / total_berat
             y_cog = total_y / total_berat
             st.info(f"Titik berat kapal (horizontal, vertical): (x = {x_cog:.2f}, y = {y_cog:.2f})")
+
+        total_sisa = {gol: 0 for gol in KENDARAAN.keys()}
+        for lantai in self.lantai_list:
+            sisa = lantai.get_kemungkinan_sisa()
+            for gol, jumlah in sisa.items():
+                total_sisa[gol] += jumlah
+
+        with st.expander("Sisa Kapasitas per Golongan"):
+            for gol in sorted(total_sisa.keys()):
+                st.markdown(f"Golongan {ROMAWI[gol]}: {total_sisa[gol]} kendaraan")
+
+# Sidebar
+with st.sidebar:
+    st.header("Input Kapal")
+    jumlah_lantai = st.number_input("Jumlah Lantai", min_value=1, max_value=5, value=2)
+    lantai_defs = []
+    for i in range(jumlah_lantai):
+        panjang = st.number_input(f"Panjang Lantai {i+1}", min_value=10, value=30, key=f"p{i}")
+        lebar = st.number_input(f"Lebar Lantai {i+1}", min_value=3, value=12, step=3, key=f"l{i}")
+        lantai_defs.append((panjang, lebar))
+
+    if 'kapal' not in st.session_state or st.button("Buat Ulang Kapal"):
+        st.session_state.kapal = Kapal(lantai_defs)
+
+    st.divider()
+    st.header("Tambah Kendaraan")
+    gol = st.selectbox("Pilih Golongan", options=sorted(KENDARAAN.keys()), format_func=lambda g: f"Golongan {ROMAWI[g]}")
+    if st.button("Tambah"):
+        st.session_state.kapal.tambah_kendaraan(gol)
+
+# Visualisasi utama
+st.session_state.kapal.visualisasi()
