@@ -1,201 +1,172 @@
 import streamlit as st
-import math
+import numpy as np
 
-st.set_page_config(page_title="Stabilitas Kapal 2D", layout="centered")
-st.title("Stabilitas Kapal - Titik Berat Horizontal & Vertikal")
+st.set_page_config(layout="wide")
 
-KENDARAAN = {
-    4: 5,
-    5: 7,
-    6: 10,
-    7: 12,
-    8: 16,
-    9: 24
+# ------------------------
+# Parameter sistem
+# ------------------------
+slot_per_baris = 10
+panjang_lantai = 6  # jumlah baris (depan-belakang)
+
+GOLONGAN_INFO = {
+    "IV": 2,
+    "V": 3,
+    "VI": 4,
+    "VII": 5,
+    "VIII": 6,
+    "IX": 7
 }
 
-ROMAWI = {
-    4: "IV",
-    5: "V",
-    6: "VI",
-    7: "VII",
-    8: "VIII",
-    9: "IX"
-}
+golongan_prioritas = ["IV", "V", "VI", "VII", "VIII", "IX"]
 
-WARNA = {
-    4: "#f94144",
-    5: "#f3722c",
-    6: "#f9c74f",
-    7: "#90be6d",
-    8: "#43aa8b",
-    9: "#577590"
-}
-
+# ------------------------
+# Kelas Lantai
+# ------------------------
 class LantaiKapal:
-    def __init__(self, panjang, lebar):
+    def __init__(self, nama, panjang, lebar):
+        self.nama = nama
         self.panjang = panjang
         self.lebar = lebar
-        self.slot_count = lebar // 3
-        self.grid = [['.' for _ in range(self.slot_count)] for _ in range(panjang)]
-        self.kendaraan_terpasang = []
+        self.grid = [[None for _ in range(lebar)] for _ in range(panjang)]
 
-    def reset_grid(self):
-        self.grid = [['.' for _ in range(self.slot_count)] for _ in range(self.panjang)]
-        for k in self.kendaraan_terpasang:
-            for j in range(k['panjang']):
-                self.grid[k['row'] + j][k['col']] = f"G{ROMAWI[k['gol']]}"
+    def bisa_memuat(self, panjang_kendaraan):
+        for y in range(self.panjang):
+            for x in range(self.lebar - panjang_kendaraan + 1):
+                if all(self.grid[y][x + i] is None for i in range(panjang_kendaraan)):
+                    return True
+        return False
 
-    def get_center_of_mass(self):
-        total_weight = 0
-        sum_x = 0
-        sum_y = 0
-        for k in self.kendaraan_terpasang:
-            berat = KENDARAAN[k['gol']]
-            x = k['col'] + 0.5
-            y = k['row'] + k['panjang'] / 2
-            sum_x += berat * x
-            sum_y += berat * y
-            total_weight += berat
-        if total_weight == 0:
-            return None
-        return (sum_x / total_weight, sum_y / total_weight)
+    def muat_kendaraan_optimal(self, golongan, panjang_kendaraan, semua_posisi):
+        posisi_terbaik = None
+        min_jarak = float('inf')
 
-    def cari_semua_posisi(self, gol):
-        panjang_kendaraan = KENDARAAN[gol]
-        posisi_valid = []
-        for i in range(self.slot_count):
-            for start_row in range(self.panjang - panjang_kendaraan + 1):
-                if all(self.grid[start_row + j][i] == '.' for j in range(panjang_kendaraan)):
-                    posisi_valid.append((i, start_row))
-        return posisi_valid
+        for y in range(self.panjang):
+            for x in range(self.lebar - panjang_kendaraan + 1):
+                if all(self.grid[y][x + i] is None for i in range(panjang_kendaraan)):
+                    posisi = semua_posisi + [(x + panjang_kendaraan/2, y + 0.5, panjang_kendaraan)]
+                    cx, cy = get_center_of_mass(posisi)
+                    dx = abs(cx - self.lebar/2)
+                    dy = abs(cy - self.panjang/2)
+                    jarak = dx + dy
+                    if jarak < min_jarak:
+                        min_jarak = jarak
+                        posisi_terbaik = (x, y)
 
-    def update_kendaraan(self, daftar_kendaraan):
-        self.kendaraan_terpasang = []
-        self.grid = [['.' for _ in range(self.slot_count)] for _ in range(self.panjang)]
-        for gol in daftar_kendaraan:
-            self.tambah_kendaraan(gol)
+        if posisi_terbaik:
+            x, y = posisi_terbaik
+            for i in range(panjang_kendaraan):
+                self.grid[y][x + i] = golongan
+            return True
 
-    def tambah_kendaraan(self, gol):
-        panjang_kendaraan = KENDARAAN[gol]
-        label = f"G{ROMAWI[gol]}"
-        semua_posisi = self.cari_semua_posisi(gol)
-        terbaik = None
-        jarak_terdekat = float('inf')
+        return False
 
-        for col, row in semua_posisi:
-            self.kendaraan_terpasang.append({"gol": gol, "col": col, "row": row, "panjang": panjang_kendaraan})
-            self.reset_grid()
-            com = self.get_center_of_mass()
-            self.kendaraan_terpasang.pop()
-            if com:
-                x0 = self.slot_count / 2
-                y0 = self.panjang / 2
-                jarak = math.sqrt((com[0] - x0) ** 2 + (com[1] - y0) ** 2)
-                if jarak < jarak_terdekat:
-                    jarak_terdekat = jarak
-                    terbaik = (col, row)
+    def hapus_semua(self):
+        self.grid = [[None for _ in range(self.lebar)] for _ in range(self.panjang)]
 
-        if terbaik:
-            col, row = terbaik
-            for j in range(panjang_kendaraan):
-                self.grid[row + j][col] = label
-            self.kendaraan_terpasang.append({"gol": gol, "col": col, "row": row, "panjang": panjang_kendaraan})
-            return True, f"Slot {col+1} baris {row+1}"
-        return False, "Tidak cukup ruang"
+    def posisi_kendaraan(self):
+        posisi = []
+        for y in range(self.panjang):
+            for x in range(self.lebar):
+                if self.grid[y][x] and (x == 0 or self.grid[y][x-1] != self.grid[y][x]):
+                    panjang = 1
+                    while x + panjang < self.lebar and self.grid[y][x + panjang] == self.grid[y][x]:
+                        panjang += 1
+                    posisi.append((x + panjang/2, y + 0.5, panjang))
+        return posisi
 
-    def sisa_kemungkinan(self):
-        kosong = [['.' for _ in range(self.slot_count)] for _ in range(self.panjang)]
-        for row in range(self.panjang):
-            for col in range(self.slot_count):
-                if self.grid[row][col] != '.':
-                    kosong[row][col] = '#'
-        hasil = {gol: 0 for gol in KENDARAAN}
-        for gol, pj in KENDARAAN.items():
-            for col in range(self.slot_count):
-                row = 0
-                while row <= self.panjang - pj:
-                    if all(kosong[row + j][col] == '.' for j in range(pj)):
-                        hasil[gol] += 1
-                        row += pj
-                    else:
-                        row += 1
-        return hasil
+# ------------------------
+# Fungsi bantu
+# ------------------------
+def get_center_of_mass(posisi):
+    total_massa = sum(p for _, _, p in posisi)
+    cx = sum(x * p for x, _, p in posisi) / total_massa
+    cy = sum(y * p for _, y, p in posisi) / total_massa
+    return cx, cy
 
-    def visualisasi(self):
-        st.markdown("<b>Visualisasi</b>", unsafe_allow_html=True)
-        html_grid = "<div style='display:grid; grid-template-columns: repeat(%d, 30px); gap:1px;'>" % (self.slot_count)
-        for row in self.grid:
-            for cell in row:
-                if cell == '.':
-                    html_grid += "<div style='width:30px;height:15px;background:#ddd;'></div>"
-                else:
-                    gol = next((k for k, v in ROMAWI.items() if v == cell[1:]), 4)
-                    html_grid += f"<div style='width:30px;height:15px;background:{WARNA[gol]};text-align:center;font-size:10px;color:white'>{cell}</div>"
-        html_grid += "</div>"
-        st.markdown(html_grid, unsafe_allow_html=True)
-        com = self.get_center_of_mass()
-        if com:
-            st.markdown(f"<small>Pusat Berat (x, y): <b>{com[0]:.2f}, {com[1]:.2f}</b></small>", unsafe_allow_html=True)
+def tampilkan_lantai(lantai: LantaiKapal):
+    st.markdown(f"**{lantai.nama}**")
+    for row in lantai.grid:
+        st.markdown("".join(
+            f"<span style='display:inline-block; width:25px; height:25px; text-align:center; border:1px solid #ccc; background:#eaeaea'>{cell if cell else '&nbsp;'}</span>"
+            for cell in row
+        ), unsafe_allow_html=True)
 
-class Kapal:
-    def __init__(self, lantai_defs):
-        self.lantai_list = [LantaiKapal(p, l) for p, l in lantai_defs]
-        self.daftar_kendaraan = []
+# ------------------------
+# Fungsi utama
+# ------------------------
+def atur_ulang_semua_kendaraan(daftar_golongan, semua_lantai):
+    # Kosongkan semua lantai
+    for l in semua_lantai:
+        l.hapus_semua()
 
-    def tambah_kendaraan(self, gol):
-        self.daftar_kendaraan.append(gol)
-        for lantai in self.lantai_list:
-            lantai.update_kendaraan([g for g in self.daftar_kendaraan if g >= 6] + [g for g in self.daftar_kendaraan if g < 6])
-        return "Kendaraan dimuat ulang dan dioptimalkan"
+    kendaraan_teralokasi = {g: 0 for g in daftar_golongan}
 
-    def visualisasi(self):
-        layout = st.columns(len(self.lantai_list))
-        for idx, lantai in enumerate(self.lantai_list):
-            with layout[idx]:
-                st.markdown(f"<b>Lantai {idx+1}</b>", unsafe_allow_html=True)
-                lantai.visualisasi()
-                st.markdown("<i>Sisa muat:</i>")
-                sisa = lantai.sisa_kemungkinan()
-                for g in sorted(sisa):
-                    if g >= 6 and idx > 0:
-                        continue
-                    st.markdown(f"Gol {ROMAWI[g]}: {sisa[g]} unit")
+    for gol in daftar_golongan:
+        panjang = GOLONGAN_INFO[gol]
+        while True:
+            semua_posisi = []
+            for lt in semua_lantai:
+                semua_posisi += lt.posisi_kendaraan()
 
-# Streamlit Session
-if "kapal" not in st.session_state:
-    st.session_state.kapal = None
-if "input_lantai" not in st.session_state:
-    st.session_state.input_lantai = []
+            terpasang = False
+            for lt in semua_lantai:
+                if gol in ["IV", "V"] and lt != semua_lantai[0]:
+                    if lt.muat_kendaraan_optimal(gol, panjang, semua_posisi):
+                        kendaraan_teralokasi[gol] += 1
+                        terpasang = True
+                        break
+                elif gol not in ["IV", "V"] and lt == semua_lantai[0]:
+                    if lt.muat_kendaraan_optimal(gol, panjang, semua_posisi):
+                        kendaraan_teralokasi[gol] += 1
+                        terpasang = True
+                        break
+            if not terpasang:
+                break
 
-st.sidebar.header("Pengaturan Kapal")
+    return kendaraan_teralokasi
 
-if st.session_state.kapal is None:
-    jumlah = st.sidebar.number_input("Jumlah lantai kapal", min_value=1, max_value=5, value=2)
-    if len(st.session_state.input_lantai) != jumlah:
-        st.session_state.input_lantai = [{"panjang": 30, "lebar": 9} for _ in range(jumlah)]
+# ------------------------
+# Streamlit UI
+# ------------------------
+st.title("🚢 Penataan Kendaraan di Dalam Kapal")
 
-    for i in range(jumlah):
-        st.sidebar.markdown(f"**Lantai {i+1}**")
-        st.session_state.input_lantai[i]["panjang"] = st.sidebar.number_input(
-            f"Panjang Lantai {i+1}", min_value=1, max_value=200, value=st.session_state.input_lantai[i]["panjang"], key=f"p_{i}")
-        st.session_state.input_lantai[i]["lebar"] = st.sidebar.number_input(
-            f"Lebar Lantai {i+1}", min_value=3, max_value=30, value=st.session_state.input_lantai[i]["lebar"], key=f"l_{i}")
+jml_lantai = st.sidebar.number_input("Jumlah lantai", 1, 5, 2)
+lantai_list = []
+for i in range(jml_lantai):
+    panjang = st.sidebar.number_input(f"Panjang lantai {i+1}", 1, 20, panjang_lantai, key=f"panjang_{i}")
+    lebar = st.sidebar.number_input(f"Lebar lantai {i+1}", 1, 20, slot_per_baris, key=f"lebar_{i}")
+    lantai_list.append(LantaiKapal(f"Lantai {i+1}", panjang, lebar))
 
-    if st.sidebar.button("Mulai"):
-        data = [(d["panjang"], d["lebar"]) for d in st.session_state.input_lantai]
-        st.session_state.kapal = Kapal(data)
-        st.rerun()
-else:
-    st.sidebar.success("Kapal aktif ✅")
-    if st.sidebar.button("Reset"):
-        st.session_state.kapal = None
-        st.rerun()
+st.sidebar.markdown("---")
 
-    st.sidebar.markdown("### 🚗 Tambah Kendaraan")
-    gol = st.sidebar.selectbox("Golongan Kendaraan", list(KENDARAAN.keys()), format_func=lambda x: f"{ROMAWI[x]} (G{x})")
-    if st.sidebar.button("Tambah"):
-        hasil = st.session_state.kapal.tambah_kendaraan(gol)
-        st.success(hasil)
+# Input kendaraan
+jumlah_kendaraan = {}
+for gol in golongan_prioritas:
+    jumlah_kendaraan[gol] = st.sidebar.number_input(f"Jumlah kendaraan golongan {gol}", 0, 100, 0)
 
-    st.divider()
-    st.session_state.kapal.visualisasi()
+if st.sidebar.button("Atur Kendaraan"):
+    hasil = atur_ulang_semua_kendaraan(
+        [gol for gol in golongan_prioritas for _ in range(jumlah_kendaraan[gol])],
+        lantai_list
+    )
+
+    st.success("Penataan kendaraan selesai ✅")
+
+    for lt in lantai_list:
+        tampilkan_lantai(lt)
+
+    semua_posisi = []
+    for lt in lantai_list:
+        semua_posisi += lt.posisi_kendaraan()
+
+    cx, cy = get_center_of_mass(semua_posisi)
+    st.markdown(f"**Titik pusat berat:** X = `{cx:.2f}`, Y = `{cy:.2f}`")
+
+    # Hitung sisa kendaraan yang bisa ditampung
+    kapasitas_terpakai = {g: hasil.get(g, 0) for g in golongan_prioritas}
+    kapasitas_diminta = jumlah_kendaraan
+    st.markdown("### Sisa kendaraan yang tidak dapat dimuat:")
+    for g in golongan_prioritas:
+        sisa = kapasitas_diminta[g] - kapasitas_terpakai.get(g, 0)
+        st.markdown(f"- Golongan {g}: {max(sisa, 0)} unit")
