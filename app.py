@@ -93,9 +93,9 @@ if tambah:
 # Fungsi: tampilkan grid
 def tampilkan_grid(grid):
     rows, cols = grid.shape
-    fig, ax = plt.subplots(figsize=(cols / 2, rows / 2))
-    ax.set_xlim(0, cols)
-    ax.set_ylim(0, rows)
+    fig, ax = plt.subplots(figsize=(cols / 2, rows / 2 + 1))
+    ax.set_xlim(-1, cols + 1)
+    ax.set_ylim(-1, rows + 1)
     ax.set_xticks(np.arange(0, cols + 1, 1))
     ax.set_yticks(np.arange(0, rows + 1, 1))
     ax.grid(True)
@@ -115,7 +115,7 @@ def tampilkan_grid(grid):
         )
         ax.add_patch(rect)
         ax.text(j + p/2, y + l/2, gol, ha="center", va="center", fontsize=10, weight="bold")
-        
+
     # Garis vertikal titik seimbang horizontal
     if st.session_state.kapal and "titik_seimbang_h" in st.session_state.kapal:
         x_seimbang = st.session_state.kapal["titik_seimbang_h"]
@@ -128,23 +128,7 @@ def tampilkan_grid(grid):
         ax.axhline(y=rows - y_seimbang, color="red", linestyle="--", linewidth=1.5)
         ax.text(cols + 0.2, rows - y_seimbang, "Titik Seimbang (Kiri-Kanan)", color="red", fontsize=8, va="center", rotation=90)
 
-
-
-    for i in range(rows):
-        for j in range(cols):
-            val = grid[i, j]
-            if val != 0:
-                
-                rect = Rectangle(
-                    (j, rows - i - 1), 1, 1,
-                    facecolor=WARNA.get(val, "gray"),
-                    edgecolor='black',      # garis tepi hitam
-                    linewidth=1.5           # ketebalan garis tepi
-                )
-                ax.add_patch(rect)
-                ax.text(j + 0.5, rows - i - 0.5, val, ha="center", va="center", fontsize=8)
-
-    # Tambahkan teks "Depan" dan "Belakang"
+    # Label depan dan belakang
     ax.text(0, -0.8, "⬅️ Depan", ha="left", va="center", fontsize=10, weight="bold")
     ax.text(cols, -0.8, "Belakang ➡️", ha="right", va="center", fontsize=10, weight="bold")
 
