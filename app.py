@@ -15,6 +15,14 @@ KENDARAAN = {
     "IX": (21, 3),
 }
 
+BERAT = {
+    "IV": 1,
+    "V": 8,
+    "VI": 12,
+    "VII": 15,
+    "VIII": 18,
+    "IX": 30
+}
 WARNA = {
     "IV": "lightblue",
     "V": "lightgreen",
@@ -77,7 +85,14 @@ def tambahkan_kendaraan(gol):
         for dx in range(l):
             for dy in range(p):
                 st.session_state.grid[i+dx, j+dy] = gol
-        st.session_state.kendaraan.append({"gol": gol, "pos": (i, j), "size": (p, l)})
+        berat = BERAT[gol]
+        st.session_state.kendaraan.append({
+            "gol": gol,
+            "pos": (i, j),
+            "size": (p, l),
+            "berat": berat
+        })
+
         return True
     return False
 
