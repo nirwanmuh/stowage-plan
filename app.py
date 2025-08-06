@@ -117,7 +117,13 @@ def tampilkan_grid(grid):
         for j in range(cols):
             val = grid[i, j]
             if val != 0:
-                rect = Rectangle((j, rows - i - 1), 1, 1, color=WARNA.get(val, "gray"))
+                
+                rect = Rectangle(
+                    (j, rows - i - 1), 1, 1,
+                    facecolor=WARNA.get(val, "gray"),
+                    edgecolor='black',      # garis tepi hitam
+                    linewidth=1.5           # ketebalan garis tepi
+                )
                 ax.add_patch(rect)
                 ax.text(j + 0.5, rows - i - 0.5, val, ha="center", va="center", fontsize=8)
 
