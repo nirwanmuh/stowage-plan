@@ -118,52 +118,72 @@ with st.sidebar:
 # Fungsi: tambahkan kendaraan
 def tambah_kendaraan(golongan, berat_manual=None):
     kendaraan_baru = {
-        "golongan": golongan,
-        "ukuran": KENDARAAN[golongan],
-        "berat": berat_manual if berat_manual is not None else BERAT[golongan],
+        "gol": golongan,
+        "size": KENDARAAN[golongan],
+        "berat": berat_manual if berat_manual is not None else BERAT[golongan]
     }
 
-    # Gabungkan semua kendaraan yang sudah ada + yang baru
-    semua_kendaraan = st.session_state.kendaraan_list + [kendaraan_baru]
+    semua_kendaraan = st.session_state.kendaraan + [kendaraan_baru]
 
-    # Coba semua kombinasi penyusunan ulang
+    grid_awal = st.session_state.grid
+    kapal = st.session_state.kapal
+    tx = kapal["titik_seimbang_h"]
+    ty = kapal["titik_seimbang_v"]
+
     hasil_terbaik = None
-    sisa_ruang_terbanyak = -1
+    sisa_terbanyak = -1
     keseimbangan_terbaik = float('inf')
+    kendaraan_terbaik = None
 
-    # Reset kapal
-    st.session_state.grid = np.zeros((st.session_state.kapal["lebar"], st.session_state.kapal["panjang"]), dtype=object)
-    st.session_state.kendaraan = []
-
-    # Coba semua permutasi penyusunan ulang
-    from itertools import permutations
     for urutan in permutations(semua_kendaraan):
-        kapal_temp = st.session_state.kapal.copy()
+        grid = np.zeros_like(grid_awal, dtype=object)
+        temp_kendaraan = []
         gagal = False
         for k in urutan:
-            if not kapal_temp.tambah_kendaraan_otomatis(k):
+            p, l = k["size"]
+            berat = k["berat"]
+            gol = k["gol"]
+            i, j = cari_lokasi(grid, p, l, berat, tx, ty)
+            if i is None:
                 gagal = True
                 break
+            for dx in range(l):
+                for dy in range(p):
+                    grid[i + dx, j + dy] = gol
+            temp_kendaraan.append({
+                "gol": gol,
+                "pos": (i, j),
+                "size": (p, l),
+                "berat": berat
+            })
+
         if not gagal:
-            # Hitung sisa ruang + keseimbangan
-            sisa_ruang = kapal_temp.total_sisa_grid()
-            keseimbangan = kapal_temp.hitung_titik_berat()
+            sisa = np.sum(grid == 0)
+            total_mx, total_my = 0, 0
+            for k in temp_kendaraan:
+                i, j = k["pos"]
+                p, l = k["size"]
+                berat = k["berat"]
+                cx = j + p / 2
+                cy = i + l / 2
+                total_mx += berat * (cx - tx)
+                total_my += berat * (cy - ty)
 
-            if hasil_terbaik is None or sisa_ruang > sisa_ruang_terbanyak or (
-                sisa_ruang == sisa_ruang_terbanyak and keseimbangan < keseimbangan_terbaik
-            ):
-                hasil_terbaik = kapal_temp
-                sisa_ruang_terbanyak = sisa_ruang
-                keseimbangan_terbaik = keseimbangan
+            total_momen = abs(total_mx) + abs(total_my)
 
-    # Simpan hasil terbaik jika ada
-    if hasil_terbaik:
-        st.session_state.kapal = hasil_terbaik
-        st.session_state.kendaraan_list = semua_kendaraan
-        st.success("Kendaraan berhasil dimuat dengan penataan ulang.")
+            if hasil_terbaik is None or sisa > sisa_terbanyak or (
+                sisa == sisa_terbanyak and total_momen < keseimbangan_terbaik):
+                hasil_terbaik = grid
+                sisa_terbanyak = sisa
+                keseimbangan_terbaik = total_momen
+                kendaraan_terbaik = temp_kendaraan
+
+    if hasil_terbaik is not None:
+        st.session_state.grid = hasil_terbaik
+        st.session_state.kendaraan = kendaraan_terbaik
+        st.success("✅ Kendaraan berhasil dimuat dengan penataan ulang.")
     else:
-        st.error("Kendaraan tidak bisa dimuat meskipun dengan penataan ulang.")
-
+        st.error("❌ Kendaraan tidak bisa dimuat, meskipun dengan penataan ulang.")
 
 # Sidebar: tambah kendaraan
 with st.sidebar:
