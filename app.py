@@ -36,9 +36,11 @@ WARNA = {
 if "kapal" not in st.session_state:
     st.session_state.kapal = None
 if "grid" not in st.session_state:
-    st.session_state.grid = None
+    st.session_state.grid = None    
 if "kendaraan" not in st.session_state:
     st.session_state.kendaraan = []
+if "kendaraan_list" not in st.session_state:
+    st.session_state.kendaraan_list = []
 
 # Fungsi: mencari tempat kosong
 def cari_lokasi(grid, p, l, berat, tx, ty):
