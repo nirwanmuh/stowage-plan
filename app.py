@@ -37,10 +37,17 @@ with st.sidebar:
     st.header("Konfigurasi Kapal")
     panjang_kapal = st.number_input("Panjang Kapal (meter)", min_value=1, value=30)
     lebar_kapal = st.number_input("Lebar Kapal (meter)", min_value=1, value=12)
+    titik_seimbang = st.number_input(
+        "Titik Seimbang Horizontal (meter)",
+        min_value=0,
+        max_value=panjang_kapal,
+        value=panjang_kapal // 2
+    )    
     if st.button("🔄 Buat Ulang Kapal"):
         st.session_state.kapal = {
             "panjang": panjang_kapal,
-            "lebar": lebar_kapal
+            "lebar": lebar_kapal,
+            "titik_seimbang": titik_seimbang  # simpan titik seimbang ke state
         }
         st.session_state.grid = np.zeros((lebar_kapal, panjang_kapal), dtype=object)
         st.session_state.kendaraan = []
@@ -91,6 +98,12 @@ def tampilkan_grid(grid):
     ax.set_xticks(np.arange(0, cols + 1, 1))
     ax.set_yticks(np.arange(0, rows + 1, 1))
     ax.grid(True)
+    # Gambar garis titik seimbang (jika tersedia)
+    if st.session_state.kapal and "titik_seimbang" in st.session_state.kapal:
+        x_seimbang = st.session_state.kapal["titik_seimbang"]
+        ax.axvline(x=x_seimbang, color="red", linestyle="--", linewidth=1.5)
+        ax.text(x_seimbang, rows + 0.3, "Titik Seimbang", color="red", fontsize=8, ha="center")
+
 
     for i in range(rows):
         for j in range(cols):
