@@ -1,102 +1,116 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
-st.set_page_config("Simulasi Muatan Kapal", layout="wide")
-st.title("🚢 Simulasi Muatan Kapal Berdasarkan Golongan Kendaraan")
+st.set_page_config(page_title="Simulasi Kapal", layout="wide")
+st.title("🚢 Simulasi Muatan Kapal (1 Lantai)")
 
-# Data golongan kendaraan
+# Konstanta ukuran kendaraan per golongan (panjang, lebar)
 KENDARAAN = {
-    "IV": (5, 3),
-    "V": (7, 3),
-    "VI": (10, 3),
-    "VII": (12, 3),
-    "VIII": (16, 3),
-    "IX": (21, 3)
+    4: (2, 1),
+    5: (2, 1),
+    6: (3, 1),
+    7: (3, 1),
+    8: (4, 1),
+    9: (5, 2),
 }
 
-WARNA = {
-    "IV": "#ff9999",
-    "V": "#66b3ff",
-    "VI": "#99ff99",
-    "VII": "#ffcc99",
-    "VIII": "#c2c2f0",
-    "IX": "#ffb3e6"
-}
+ROMAWI = {4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX"}
+WARNA = {4: "skyblue", 5: "limegreen", 6: "orange", 7: "gold", 8: "violet", 9: "tomato"}
 
-# Inisialisasi state
-if "kapal" not in st.session_state:
-    st.session_state.kapal = None
-if "grid" not in st.session_state:
+# Inisialisasi session state
+if 'grid' not in st.session_state:
     st.session_state.grid = None
-if "kendaraan_masuk" not in st.session_state:
-    st.session_state.kendaraan_masuk = []
+if 'kendaraan_list' not in st.session_state:
+    st.session_state.kendaraan_list = []
+if 'kapal_dimensi' not in st.session_state:
+    st.session_state.kapal_dimensi = (0, 0)
 
-# Fungsi membuat grid kosong
-def buat_grid(panjang, lebar):
-    baris = int(panjang)
-    kolom = int(lebar)
-    return np.full((baris, kolom), '', dtype=object)
+# Konfigurasi ukuran kapal
+with st.sidebar:
+    st.header("⚙️ Konfigurasi Kapal")
+    panjang = st.number_input("Panjang kapal (grid)", min_value=5, value=10)
+    lebar = st.number_input("Lebar kapal (grid)", min_value=2, value=5)
 
-# Fungsi menambahkan kendaraan secara manual
-def tambah_kendaraan(gol):
-    panjang_kendaraan, lebar_kendaraan = KENDARAAN[gol]
-    grid = st.session_state.grid
-    rows, cols = grid.shape
+    if st.button("Set Ulang Kapal"):
+        st.session_state.kapal_dimensi = (panjang, lebar)
+        st.session_state.grid = np.zeros((panjang, lebar), dtype=int)
+        st.session_state.kendaraan_list = []
 
-    # Pindai grid secara baris, cari lokasi kosong untuk kendaraan
-    for i in range(rows - panjang_kendaraan + 1):
-        for j in range(cols - lebar_kendaraan + 1):
-            area = grid[i:i+panjang_kendaraan, j:j+lebar_kendaraan]
-            if np.all(area == ''):
-                grid[i:i+panjang_kendaraan, j:j+lebar_kendaraan] = gol
-                st.session_state.kendaraan_masuk.append(gol)
-                return True
-    return False  # Tidak cukup tempat
+# Fungsi mencari posisi kosong
+def cari_posisi(grid, ukuran):
+    p, l = ukuran
+    for i in range(grid.shape[0] - p + 1):
+        for j in range(grid.shape[1] - l + 1):
+            if np.all(grid[i:i+p, j:j+l] == 0):
+                return i, j
+    return None
 
-# Fungsi visualisasi grid
+# Tambahkan kendaraan
+st.subheader("➕ Tambah Kendaraan")
+col1, col2 = st.columns(2)
+with col1:
+    golongan = st.selectbox("Pilih golongan kendaraan", options=list(KENDARAAN.keys()), format_func=lambda x: f"Golongan {ROMAWI[x]}")
+with col2:
+    nama = st.text_input("Nama / ID kendaraan (opsional)", value=f"ID-{len(st.session_state.kendaraan_list)+1}")
+
+if st.button("Tambahkan ke kapal"):
+    if st.session_state.grid is None:
+        st.warning("Silakan set dulu ukuran kapal di sidebar.")
+    else:
+        ukuran = KENDARAAN[golongan]
+        posisi = cari_posisi(st.session_state.grid, ukuran)
+        if posisi:
+            i, j = posisi
+            p, l = ukuran
+            st.session_state.grid[i:i+p, j:j+l] = golongan
+            st.session_state.kendaraan_list.append({
+                "nama": nama,
+                "golongan": golongan,
+                "ukuran": ukuran,
+                "posisi": posisi
+            })
+            st.success(f"Kendaraan {nama} berhasil ditambahkan.")
+        else:
+            st.error("Tidak ada ruang kosong untuk kendaraan ini!")
+
+# Tampilkan visualisasi
 def tampilkan_grid(grid):
     fig, ax = plt.subplots(figsize=(10, 6))
-    rows, cols = grid.shape
-    for i in range(rows):
-        for j in range(cols):
-            val = grid[i, j]
-            color = WARNA.get(val, "#FFFFFF")
-            ax.add_patch(plt.Rectangle((j, rows - i - 1), 1, 1, facecolor=color, edgecolor='black'))
-    ax.set_xlim(0, cols)
-    ax.set_ylim(0, rows)
-    ax.set_xticks(np.arange(0, cols + 1, 1))
-    ax.set_yticks(np.arange(0, rows + 1, 1))
-    ax.set_aspect('equal')
-    ax.set_title("Visualisasi Muatan Kapal")
-    ax.axis('off')
+    ax.set_xlim(0, grid.shape[1])
+    ax.set_ylim(0, grid.shape[0])
+    ax.set_xticks(np.arange(0, grid.shape[1]+1, 1))
+    ax.set_yticks(np.arange(0, grid.shape[0]+1, 1))
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.grid(True)
+
+    for kendaraan in st.session_state.kendaraan_list:
+        i, j = kendaraan["posisi"]
+        p, l = kendaraan["ukuran"]
+        gol = kendaraan["golongan"]
+        warna = WARNA[gol]
+        rect = patches.Rectangle((j, grid.shape[0] - i - p), l, p, linewidth=1, edgecolor='black', facecolor=warna)
+        ax.add_patch(rect)
+        ax.text(j + l/2, grid.shape[0] - i - p/2, ROMAWI[gol], color='black', ha='center', va='center', fontsize=12, weight='bold')
+
     st.pyplot(fig)
 
-# Input dimensi kapal
-with st.sidebar:
-    st.subheader("⚙️ Konfigurasi Kapal")
-    panjang_kapal = st.number_input("Panjang kapal (meter)", min_value=10, value=40, step=1)
-    lebar_kapal = st.number_input("Lebar kapal (meter)", min_value=3, value=12, step=1)
-
-    if st.button("🚢 Buat Kapal"):
-        st.session_state.grid = buat_grid(panjang_kapal, lebar_kapal)
-        st.session_state.kendaraan_masuk = []
-
-    if st.session_state.grid is not None:
-        st.subheader("➕ Tambah Kendaraan")
-        golongan = st.selectbox("Pilih golongan", list(KENDARAAN.keys()))
-        if st.button("Tambahkan"):
-            berhasil = tambah_kendaraan(golongan)
-            if not berhasil:
-                st.warning("❌ Tidak cukup ruang untuk kendaraan ini!")
-
-# Visualisasi
 if st.session_state.grid is not None:
+    st.subheader("📦 Visualisasi Kapal")
     tampilkan_grid(st.session_state.grid)
 
-    st.markdown("### 📦 Kendaraan yang Telah Masuk:")
-    st.write(st.session_state.kendaraan_masuk)
-
-    sisa = np.count_nonzero(st.session_state.grid == '')
-    total = st.session_state.grid.size
-    st.success(f"Sisa ruang: {sisa} dari {total} unit ({(sisa/total)*100:.2f}%)")
+# Hapus kendaraan
+st.subheader("🗑️ Hapus Kendaraan")
+if st.session_state.kendaraan_list:
+    opsi_hapus = [f"{v['nama']} (Gol. {ROMAWI[v['golongan']]})" for v in st.session_state.kendaraan_list]
+    idx_hapus = st.selectbox("Pilih kendaraan yang ingin dihapus", options=range(len(opsi_hapus)), format_func=lambda x: opsi_hapus[x])
+    if st.button("Hapus kendaraan"):
+        kendaraan = st.session_state.kendaraan_list.pop(idx_hapus)
+        i, j = kendaraan["posisi"]
+        p, l = kendaraan["ukuran"]
+        st.session_state.grid[i:i+p, j:j+l] = 0
+        st.success(f"Kendaraan {kendaraan['nama']} telah dihapus.")
+else:
+    st.info("Belum ada kendaraan dimuat.")
