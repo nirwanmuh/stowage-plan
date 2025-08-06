@@ -90,27 +90,46 @@ def cari_lokasi(grid, p, l, berat, titik_seimbang_x, titik_seimbang_y):
                     best_pos = (i, j)
     return best_pos
 
-# Fungsi: tambahkan kendaraan
-def tambahkan_kendaraan(gol):
-    p, l = KENDARAAN[gol]
-    berat = BERAT[gol]
+#susu ulang kendaraan
+def susun_ulang_kendaraan():
+    grid = np.zeros_like(st.session_state.grid, dtype=object)
     kapal = st.session_state.kapal
     titik_seimbang_x = kapal["titik_seimbang_h"]
     titik_seimbang_y = kapal["titik_seimbang_v"]
 
-    i, j = cari_lokasi(st.session_state.grid, p, l, berat, titik_seimbang_x, titik_seimbang_y)
-    if i is not None:
-        for dx in range(l):
-            for dy in range(p):
-                st.session_state.grid[i+dx, j+dy] = gol
-        st.session_state.kendaraan.append({
-            "gol": gol,
-            "pos": (i, j),
-            "size": (p, l),
-            "berat": berat
-        })
-        return True
-    return False
+    kendaraan_baru = []
+
+    for k in st.session_state.kendaraan:
+        p, l = k["size"]
+        berat = k["berat"]
+        gol = k["gol"]
+
+        i, j = cari_lokasi(grid, p, l, berat, titik_seimbang_x, titik_seimbang_y)
+        if i is not None:
+            for dx in range(l):
+                for dy in range(p):
+                    grid[i + dx, j + dy] = gol
+            kendaraan_baru.append({
+                "gol": gol,
+                "pos": (i, j),
+                "size": (p, l),
+                "berat": berat
+            })
+
+    st.session_state.grid = grid
+    st.session_state.kendaraan = kendaraan_baru
+
+
+# Fungsi: tambahkan kendaraan
+def tambahkan_kendaraan(gol):
+    p, l = KENDARAAN[gol]
+    berat = BERAT[gol]
+    st.session_state.kendaraan.append({
+        "gol": gol,
+        "size": (p, l),
+        "berat": berat
+    })
+    susun_ulang_kendaraan()  # susun ulang semua kendaraan
 
 # Jalankan tambah kendaraan
 if tambah:
