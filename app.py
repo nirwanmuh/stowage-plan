@@ -120,15 +120,7 @@ with st.sidebar:
     tambah = st.button("➕ Tambahkan ke Kapal")
 
     if tambah:
-        p, l = KENDARAAN[golongan]
-        berat = BERAT[golongan]
-        st.session_state.kendaraan.append({
-            "gol": golongan,
-            "size": (p, l),
-            "berat": berat,
-            "pos": (0, 0)
-        })
-        susun_ulang_kendaraan()
+        tambah_kendaraan(golongan)
 
 # Fungsi: tambahkan kendaraan
 def tambah_kendaraan(golongan, berat_manual=None):
