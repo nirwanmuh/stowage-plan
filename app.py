@@ -67,15 +67,15 @@ with st.sidebar:
     golongan = st.selectbox("Golongan", list(KENDARAAN.keys()))
     tambah = st.button("➕ Tambahkan ke Kapal")
     if tambah:
-    p, l = KENDARAAN[golongan]
-    berat = BERAT[golongan]
-    st.session_state.kendaraan.append({
-        "gol": golongan,
-        "size": (p, l),
-        "berat": berat,
-        "pos": (0, 0)  # sementara, akan ditentukan ulang
-    })
-    susun_ulang_kendaraan()
+        p, l = KENDARAAN[golongan]
+        berat = BERAT[golongan]
+        st.session_state.kendaraan.append({
+            "gol": golongan,
+            "size": (p, l),
+            "berat": berat,
+            "pos": (0, 0)  # sementara, akan ditentukan ulang
+        })
+        susun_ulang_kendaraan()
 
 # Fungsi: mencari tempat kosong
 def cari_lokasi(grid, p, l, berat, tx, ty):
