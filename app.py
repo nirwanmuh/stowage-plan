@@ -68,31 +68,47 @@ with st.sidebar:
     tambah = st.button("➕ Tambahkan ke Kapal")
 
 # Fungsi: mencari tempat kosong
-def cari_lokasi(grid, p, l):
+def cari_lokasi(grid, p, l, berat, titik_seimbang_x, titik_seimbang_y):
     rows, cols = grid.shape
+    min_momen = float("inf")
+    best_pos = (None, None)
+
     for i in range(rows - l + 1):
         for j in range(cols - p + 1):
             potongan = grid[i:i+l, j:j+p]
             if np.all(potongan == 0):
-                return i, j
-    return None, None
+                # Hitung titik tengah kendaraan ini
+                cx = j + p / 2
+                cy = i + l / 2
+                # Hitung momen
+                momen_x = berat * (cx - titik_seimbang_x)
+                momen_y = berat * (cy - titik_seimbang_y)
+                total_momen = (momen_x ** 2 + momen_y ** 2) ** 0.5
+
+                if total_momen < min_momen:
+                    min_momen = total_momen
+                    best_pos = (i, j)
+    return best_pos
 
 # Fungsi: tambahkan kendaraan
 def tambahkan_kendaraan(gol):
     p, l = KENDARAAN[gol]
-    i, j = cari_lokasi(st.session_state.grid, p, l)
+    berat = BERAT[gol]
+    kapal = st.session_state.kapal
+    titik_seimbang_x = kapal["titik_seimbang_h"]
+    titik_seimbang_y = kapal["titik_seimbang_v"]
+
+    i, j = cari_lokasi(st.session_state.grid, p, l, berat, titik_seimbang_x, titik_seimbang_y)
     if i is not None:
         for dx in range(l):
             for dy in range(p):
                 st.session_state.grid[i+dx, j+dy] = gol
-        berat = BERAT[gol]
         st.session_state.kendaraan.append({
             "gol": gol,
             "pos": (i, j),
             "size": (p, l),
             "berat": berat
         })
-
         return True
     return False
 
@@ -161,6 +177,25 @@ def hitung_sisa_dan_kemungkinan(grid):
         kemungkinan[gol] = int(muat)
     return luas_tersisa, kemungkinan
 
+# Hitung momen total saat ini
+def hitung_total_momen():
+    kapal = st.session_state.kapal
+    titik_seimbang_x = kapal["titik_seimbang_h"]
+    titik_seimbang_y = kapal["titik_seimbang_v"]
+    total_momen_x = 0
+    total_momen_y = 0
+
+    for k in st.session_state.kendaraan:
+        i, j = k["pos"]
+        p, l = k["size"]
+        berat = k["berat"]
+        cx = j + p / 2
+        cy = i + l / 2
+        total_momen_x += berat * (cx - titik_seimbang_x)
+        total_momen_y += berat * (cy - titik_seimbang_y)
+
+    return total_momen_x, total_momen_y
+
 # Tampilan utama
 st.title("🚢 Simulasi Kapasitas Muat Kapal")
 if st.session_state.kapal:
@@ -178,5 +213,15 @@ if st.session_state.kapal:
             st.write(f"{idx}. Golongan {k['gol']} di posisi {k['pos']} ukuran {k['size']}")
     else:
         st.info("Belum ada kendaraan di kapal.")
+
+    total_mx, total_my = hitung_total_momen()
+    st.subheader("🔧 Total Momen Saat Ini")
+    st.write(f"Momen Horizontal (Depan–Belakang): **{total_mx:.2f}**")
+    st.write(f"Momen Vertikal (Kiri–Kanan): **{total_my:.2f}**")
+    
+    if abs(total_mx) < 1 and abs(total_my) < 1:
+        st.success("✅ Kapal dalam keadaan seimbang.")
+    else:
+        st.warning("⚠️ Kapal belum seimbang.")
 else:
     st.info("Silakan buat kapal terlebih dahulu melalui sidebar.")
