@@ -42,12 +42,13 @@ with st.sidebar:
         min_value=0,
         max_value=panjang_kapal,
         value=panjang_kapal // 2
-    )    
+    ) 
     if st.button("🔄 Buat Ulang Kapal"):
         st.session_state.kapal = {
             "panjang": panjang_kapal,
             "lebar": lebar_kapal,
-            "titik_seimbang": titik_seimbang  # simpan titik seimbang ke state
+            "titik_seimbang_h": titik_seimbang,
+            "titik_seimbang_v": lebar_kapal / 2  # dihitung otomatis
         }
         st.session_state.grid = np.zeros((lebar_kapal, panjang_kapal), dtype=object)
         st.session_state.kendaraan = []
@@ -98,11 +99,18 @@ def tampilkan_grid(grid):
     ax.set_xticks(np.arange(0, cols + 1, 1))
     ax.set_yticks(np.arange(0, rows + 1, 1))
     ax.grid(True)
-    # Gambar garis titik seimbang (jika tersedia)
-    if st.session_state.kapal and "titik_seimbang" in st.session_state.kapal:
-        x_seimbang = st.session_state.kapal["titik_seimbang"]
+    # Garis vertikal titik seimbang horizontal
+    if st.session_state.kapal and "titik_seimbang_h" in st.session_state.kapal:
+        x_seimbang = st.session_state.kapal["titik_seimbang_h"]
         ax.axvline(x=x_seimbang, color="red", linestyle="--", linewidth=1.5)
-        ax.text(x_seimbang, rows + 0.3, "Titik Seimbang", color="red", fontsize=8, ha="center")
+        ax.text(x_seimbang, rows + 0.3, "Titik Seimbang (Depan-Belakang)", color="red", fontsize=8, ha="center")
+
+    # Garis horizontal titik seimbang vertikal
+    if "titik_seimbang_v" in st.session_state.kapal:
+        y_seimbang = st.session_state.kapal["titik_seimbang_v"]
+        ax.axhline(y=rows - y_seimbang, color="red", linestyle="--", linewidth=1.5)
+        ax.text(cols + 0.2, rows - y_seimbang, "Titik Seimbang (Kiri-Kanan)", color="red", fontsize=8, va="center", rotation=90)
+
 
 
     for i in range(rows):
