@@ -99,6 +99,23 @@ def tampilkan_grid(grid):
     ax.set_xticks(np.arange(0, cols + 1, 1))
     ax.set_yticks(np.arange(0, rows + 1, 1))
     ax.grid(True)
+
+    # Gambar kendaraan sebagai satu kotak besar per kendaraan
+    for kendaraan in st.session_state.kendaraan:
+        gol = kendaraan['gol']
+        i, j = kendaraan['pos']
+        p, l = kendaraan['size']
+        # Rectangle dari pojok kiri bawah, jadi ubah baris ke koordinat matplotlib
+        y = rows - i - l
+        rect = Rectangle(
+            (j, y), p, l,
+            facecolor=WARNA.get(gol, "gray"),
+            edgecolor='black',
+            linewidth=2
+        )
+        ax.add_patch(rect)
+        ax.text(j + p/2, y + l/2, gol, ha="center", va="center", fontsize=10, weight="bold")
+        
     # Garis vertikal titik seimbang horizontal
     if st.session_state.kapal and "titik_seimbang_h" in st.session_state.kapal:
         x_seimbang = st.session_state.kapal["titik_seimbang_h"]
