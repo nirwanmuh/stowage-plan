@@ -68,43 +68,44 @@ with st.sidebar:
     tambah = st.button("➕ Tambahkan ke Kapal")
 
 # Fungsi: mencari tempat kosong
-def cari_lokasi(grid, p, l, berat, titik_seimbang_x, titik_seimbang_y):
-    rows, cols = grid.shape
-    min_momen = float("inf")
+def cari_lokasi(grid, p, l, berat, tx, ty):
+    min_score = float('inf')
     best_pos = (None, None)
 
-    for i in range(rows - l + 1):
-        for j in range(cols - p + 1):
-            potongan = grid[i:i+l, j:j+p]
-            if np.all(potongan == 0):
-                # Hitung titik tengah kendaraan ini
+    for i in range(grid.shape[0] - l + 1):
+        for j in range(grid.shape[1] - p + 1):
+            if np.all(grid[i:i + l, j:j + p] == 0):
                 cx = j + p / 2
                 cy = i + l / 2
-                # Hitung momen
-                momen_x = berat * (cx - titik_seimbang_x)
-                momen_y = berat * (cy - titik_seimbang_y)
-                total_momen = (momen_x ** 2 + momen_y ** 2) ** 0.5
-
-                if total_momen < min_momen:
-                    min_momen = total_momen
+                dx = abs(cx - tx)
+                dy = abs(cy - ty)
+                score = berat * (dx**2 + dy**2)
+                if score < min_score:
+                    min_score = score
                     best_pos = (i, j)
     return best_pos
+
 
 #susu ulang kendaraan
 def susun_ulang_kendaraan():
     grid = np.zeros_like(st.session_state.grid, dtype=object)
     kapal = st.session_state.kapal
-    titik_seimbang_x = kapal["titik_seimbang_h"]
-    titik_seimbang_y = kapal["titik_seimbang_v"]
+    tx = kapal["titik_seimbang_h"]
+    ty = kapal["titik_seimbang_v"]
 
     kendaraan_baru = []
 
-    for k in st.session_state.kendaraan:
-        p, l = k["size"]
-        berat = k["berat"]
-        gol = k["gol"]
+    # Urutkan dulu agar penyusunan lebih stabil (opsional)
+    kendaraan_diurutkan = sorted(
+        st.session_state.kendaraan, key=lambda x: -x["berat"]
+    )
 
-        i, j = cari_lokasi(grid, p, l, berat, titik_seimbang_x, titik_seimbang_y)
+    for k in kendaraan_diurutkan:
+        p, l = k["size"]
+        gol = k["gol"]
+        berat = k["berat"]
+
+        i, j = cari_lokasi(grid, p, l, berat, tx, ty)
         if i is not None:
             for dx in range(l):
                 for dy in range(p):
@@ -119,7 +120,6 @@ def susun_ulang_kendaraan():
     st.session_state.grid = grid
     st.session_state.kendaraan = kendaraan_baru
 
-
 # Fungsi: tambahkan kendaraan
 def tambahkan_kendaraan(gol):
     p, l = KENDARAAN[gol]
@@ -129,7 +129,7 @@ def tambahkan_kendaraan(gol):
         "size": (p, l),
         "berat": berat
     })
-    susun_ulang_kendaraan()  # susun ulang semua kendaraan
+    susun_ulang_kendaraan()  # penyusunan ulang total
 
 # Jalankan tambah kendaraan
 if tambah:
