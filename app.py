@@ -132,7 +132,8 @@ def tambah_kendaraan(golongan, berat_manual=None):
     keseimbangan_terbaik = float('inf')
 
     # Reset kapal
-    st.session_state.kapal.reset_kapal()
+    st.session_state.grid = np.zeros((st.session_state.kapal["lebar"], st.session_state.kapal["panjang"]), dtype=object)
+    st.session_state.kendaraan = []
 
     # Coba semua permutasi penyusunan ulang
     from itertools import permutations
