@@ -66,6 +66,7 @@ with st.sidebar:
     st.header("Tambah Kendaraan")
     golongan = st.selectbox("Golongan", list(KENDARAAN.keys()))
     tambah = st.button("➕ Tambahkan ke Kapal")
+
     if tambah:
         p, l = KENDARAAN[golongan]
         berat = BERAT[golongan]
@@ -73,7 +74,7 @@ with st.sidebar:
             "gol": golongan,
             "size": (p, l),
             "berat": berat,
-            "pos": (0, 0)  # sementara, akan ditentukan ulang
+            "pos": (0, 0)
         })
         susun_ulang_kendaraan()
 
