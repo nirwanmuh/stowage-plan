@@ -1,6 +1,8 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import copy
+from itertools import permutations
 from matplotlib.patches import Rectangle
 
 st.set_page_config(page_title="Simulasi Muat Kapal", layout="wide")
