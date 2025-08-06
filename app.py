@@ -94,8 +94,8 @@ if tambah:
 def tampilkan_grid(grid):
     rows, cols = grid.shape
     fig, ax = plt.subplots(figsize=(cols / 2, rows / 2 + 1))
-    ax.set_xlim(-1, cols + 1)
-    ax.set_ylim(-1, rows + 1)
+    ax.set_xlim(0, cols)
+    ax.set_ylim(0, rows)
     ax.set_xticks(np.arange(0, cols + 1, 1))
     ax.set_yticks(np.arange(0, rows + 1, 1))
     ax.grid(True)
