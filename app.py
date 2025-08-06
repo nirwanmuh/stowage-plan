@@ -1,116 +1,136 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+from matplotlib.patches import Rectangle
 
-st.set_page_config(page_title="Simulasi Kapal", layout="wide")
-st.title("🚢 Simulasi Muatan Kapal (1 Lantai)")
+st.set_page_config(page_title="Simulasi Muat Kapal", layout="wide")
 
-# Konstanta ukuran kendaraan per golongan (panjang, lebar)
+# Definisi ukuran kendaraan per golongan
 KENDARAAN = {
-    4: (2, 1),
-    5: (2, 1),
-    6: (3, 1),
-    7: (3, 1),
-    8: (4, 1),
-    9: (5, 2),
+    "IV": (5, 3),
+    "V": (7, 3),
+    "VI": (10, 3),
+    "VII": (12, 3),
+    "VIII": (16, 3),
+    "IX": (21, 3),
 }
 
-ROMAWI = {4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX"}
-WARNA = {4: "skyblue", 5: "limegreen", 6: "orange", 7: "gold", 8: "violet", 9: "tomato"}
+WARNA = {
+    "IV": "lightblue",
+    "V": "lightgreen",
+    "VI": "orange",
+    "VII": "violet",
+    "VIII": "salmon",
+    "IX": "khaki",
+}
 
-# Inisialisasi session state
-if 'grid' not in st.session_state:
+# Inisialisasi state
+if "kapal" not in st.session_state:
+    st.session_state.kapal = None
+if "grid" not in st.session_state:
     st.session_state.grid = None
-if 'kendaraan_list' not in st.session_state:
-    st.session_state.kendaraan_list = []
-if 'kapal_dimensi' not in st.session_state:
-    st.session_state.kapal_dimensi = (0, 0)
+if "kendaraan" not in st.session_state:
+    st.session_state.kendaraan = []
 
-# Konfigurasi ukuran kapal
+# Sidebar: konfigurasi kapal
 with st.sidebar:
-    st.header("⚙️ Konfigurasi Kapal")
-    panjang = st.number_input("Panjang kapal (grid)", min_value=5, value=10)
-    lebar = st.number_input("Lebar kapal (grid)", min_value=2, value=5)
+    st.header("Konfigurasi Kapal")
+    panjang_kapal = st.number_input("Panjang Kapal (meter)", min_value=1, value=30)
+    lebar_kapal = st.number_input("Lebar Kapal (meter)", min_value=1, value=12)
+    if st.button("🔄 Buat Ulang Kapal"):
+        st.session_state.kapal = {
+            "panjang": panjang_kapal,
+            "lebar": lebar_kapal
+        }
+        st.session_state.grid = np.zeros((lebar_kapal, panjang_kapal), dtype=object)
+        st.session_state.kendaraan = []
 
-    if st.button("Set Ulang Kapal"):
-        st.session_state.kapal_dimensi = (panjang, lebar)
-        st.session_state.grid = np.zeros((panjang, lebar), dtype=int)
-        st.session_state.kendaraan_list = []
+# Sidebar: tambah kendaraan
+with st.sidebar:
+    st.header("Tambah Kendaraan")
+    golongan = st.selectbox("Golongan", list(KENDARAAN.keys()))
+    tambah = st.button("➕ Tambahkan ke Kapal")
 
-# Fungsi mencari posisi kosong
-def cari_posisi(grid, ukuran):
-    p, l = ukuran
-    for i in range(grid.shape[0] - p + 1):
-        for j in range(grid.shape[1] - l + 1):
-            if np.all(grid[i:i+p, j:j+l] == 0):
+# Fungsi: mencari tempat kosong
+def cari_lokasi(grid, p, l):
+    rows, cols = grid.shape
+    for i in range(rows - l + 1):
+        for j in range(cols - p + 1):
+            potongan = grid[i:i+l, j:j+p]
+            if np.all(potongan == 0):
                 return i, j
-    return None
+    return None, None
 
-# Tambahkan kendaraan
-st.subheader("➕ Tambah Kendaraan")
-col1, col2 = st.columns(2)
-with col1:
-    golongan = st.selectbox("Pilih golongan kendaraan", options=list(KENDARAAN.keys()), format_func=lambda x: f"Golongan {ROMAWI[x]}")
-with col2:
-    nama = st.text_input("Nama / ID kendaraan (opsional)", value=f"ID-{len(st.session_state.kendaraan_list)+1}")
+# Fungsi: tambahkan kendaraan
+def tambahkan_kendaraan(gol):
+    p, l = KENDARAAN[gol]
+    i, j = cari_lokasi(st.session_state.grid, p, l)
+    if i is not None:
+        for dx in range(l):
+            for dy in range(p):
+                st.session_state.grid[i+dx, j+dy] = gol
+        st.session_state.kendaraan.append({"gol": gol, "pos": (i, j), "size": (p, l)})
+        return True
+    return False
 
-if st.button("Tambahkan ke kapal"):
-    if st.session_state.grid is None:
-        st.warning("Silakan set dulu ukuran kapal di sidebar.")
+# Jalankan tambah kendaraan
+if tambah:
+    if not st.session_state.kapal:
+        st.warning("Buat kapal terlebih dahulu!")
     else:
-        ukuran = KENDARAAN[golongan]
-        posisi = cari_posisi(st.session_state.grid, ukuran)
-        if posisi:
-            i, j = posisi
-            p, l = ukuran
-            st.session_state.grid[i:i+p, j:j+l] = golongan
-            st.session_state.kendaraan_list.append({
-                "nama": nama,
-                "golongan": golongan,
-                "ukuran": ukuran,
-                "posisi": posisi
-            })
-            st.success(f"Kendaraan {nama} berhasil ditambahkan.")
-        else:
-            st.error("Tidak ada ruang kosong untuk kendaraan ini!")
+        berhasil = tambahkan_kendaraan(golongan)
+        if not berhasil:
+            st.error("❌ Tidak ada ruang yang cukup untuk kendaraan ini.")
 
-# Tampilkan visualisasi
+# Fungsi: tampilkan grid
 def tampilkan_grid(grid):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_xlim(0, grid.shape[1])
-    ax.set_ylim(0, grid.shape[0])
-    ax.set_xticks(np.arange(0, grid.shape[1]+1, 1))
-    ax.set_yticks(np.arange(0, grid.shape[0]+1, 1))
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
+    rows, cols = grid.shape
+    fig, ax = plt.subplots(figsize=(cols / 2, rows / 2))
+    ax.set_xlim(0, cols)
+    ax.set_ylim(0, rows)
+    ax.set_xticks(np.arange(0, cols + 1, 1))
+    ax.set_yticks(np.arange(0, rows + 1, 1))
     ax.grid(True)
 
-    for kendaraan in st.session_state.kendaraan_list:
-        i, j = kendaraan["posisi"]
-        p, l = kendaraan["ukuran"]
-        gol = kendaraan["golongan"]
-        warna = WARNA[gol]
-        rect = patches.Rectangle((j, grid.shape[0] - i - p), l, p, linewidth=1, edgecolor='black', facecolor=warna)
-        ax.add_patch(rect)
-        ax.text(j + l/2, grid.shape[0] - i - p/2, ROMAWI[gol], color='black', ha='center', va='center', fontsize=12, weight='bold')
+    for i in range(rows):
+        for j in range(cols):
+            val = grid[i, j]
+            if val != 0:
+                rect = Rectangle((j, rows - i - 1), 1, 1, color=WARNA.get(val, "gray"))
+                ax.add_patch(rect)
+                ax.text(j + 0.5, rows - i - 0.5, val, ha="center", va="center", fontsize=8)
 
+    ax.set_aspect('equal')
     st.pyplot(fig)
 
-if st.session_state.grid is not None:
-    st.subheader("📦 Visualisasi Kapal")
+# Fungsi: hitung sisa ruang dan kemungkinan kendaraan
+def hitung_sisa_dan_kemungkinan(grid):
+    sisa_kosong = np.sum(grid == 0)
+    luas_tersisa = sisa_kosong * 1  # 1m x 1m
+    kemungkinan = {}
+    for gol, (p, l) in KENDARAAN.items():
+        luas_kendaraan = p * l
+        muat = luas_tersisa // luas_kendaraan
+        kemungkinan[gol] = int(muat)
+    return luas_tersisa, kemungkinan
+
+# Tampilan utama
+st.title("🚢 Simulasi Kapasitas Muat Kapal")
+if st.session_state.kapal:
+    st.subheader("Visualisasi Muatan Kapal")
     tampilkan_grid(st.session_state.grid)
 
-# Hapus kendaraan
-st.subheader("🗑️ Hapus Kendaraan")
-if st.session_state.kendaraan_list:
-    opsi_hapus = [f"{v['nama']} (Gol. {ROMAWI[v['golongan']]})" for v in st.session_state.kendaraan_list]
-    idx_hapus = st.selectbox("Pilih kendaraan yang ingin dihapus", options=range(len(opsi_hapus)), format_func=lambda x: opsi_hapus[x])
-    if st.button("Hapus kendaraan"):
-        kendaraan = st.session_state.kendaraan_list.pop(idx_hapus)
-        i, j = kendaraan["posisi"]
-        p, l = kendaraan["ukuran"]
-        st.session_state.grid[i:i+p, j:j+l] = 0
-        st.success(f"Kendaraan {kendaraan['nama']} telah dihapus.")
+    st.subheader("Sisa Kapasitas & Kemungkinan Muat")
+    sisa, kemungkinan = hitung_sisa_dan_kemungkinan(st.session_state.grid)
+    st.write(f"**Sisa luas ruang kosong:** {sisa} m²")
+    st.table([{"Golongan": gol, "Masih Bisa Muat": jumlah} for gol, jumlah in kemungkinan.items()])
+
+    st.subheader("Daftar Kendaraan Saat Ini")
+    if st.session_state.kendaraan:
+        for idx, k in enumerate(st.session_state.kendaraan, 1):
+            st.write(f"{idx}. Golongan {k['gol']} di posisi {k['pos']} ukuran {k['size']}")
+    else:
+        st.info("Belum ada kendaraan di kapal.")
 else:
-    st.info("Belum ada kendaraan dimuat.")
+    st.info("Silakan buat kapal terlebih dahulu melalui sidebar.")
+
