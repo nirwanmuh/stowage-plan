@@ -40,6 +40,40 @@ if "grid" not in st.session_state:
 if "kendaraan" not in st.session_state:
     st.session_state.kendaraan = []
 
+#susun ulang kendaraan
+def susun_ulang_kendaraan():
+    grid = np.zeros_like(st.session_state.grid, dtype=object)
+    kapal = st.session_state.kapal
+    tx = kapal["titik_seimbang_h"]
+    ty = kapal["titik_seimbang_v"]
+
+    kendaraan_baru = []
+
+    # Urutkan dulu agar penyusunan lebih stabil (opsional)
+    kendaraan_diurutkan = sorted(
+        st.session_state.kendaraan, key=lambda x: -x["berat"]
+    )
+
+    for k in kendaraan_diurutkan:
+        p, l = k["size"]
+        gol = k["gol"]
+        berat = k["berat"]
+
+        i, j = cari_lokasi(grid, p, l, berat, tx, ty)
+        if i is not None:
+            for dx in range(l):
+                for dy in range(p):
+                    grid[i + dx, j + dy] = gol
+            kendaraan_baru.append({
+                "gol": gol,
+                "pos": (i, j),
+                "size": (p, l),
+                "berat": berat
+            })
+
+    st.session_state.grid = grid
+    st.session_state.kendaraan = kendaraan_baru
+
 # Sidebar: konfigurasi kapal
 with st.sidebar:
     st.header("Konfigurasi Kapal")
@@ -96,40 +130,6 @@ def cari_lokasi(grid, p, l, berat, tx, ty):
                     best_pos = (i, j)
     return best_pos
 
-
-#susu ulang kendaraan
-def susun_ulang_kendaraan():
-    grid = np.zeros_like(st.session_state.grid, dtype=object)
-    kapal = st.session_state.kapal
-    tx = kapal["titik_seimbang_h"]
-    ty = kapal["titik_seimbang_v"]
-
-    kendaraan_baru = []
-
-    # Urutkan dulu agar penyusunan lebih stabil (opsional)
-    kendaraan_diurutkan = sorted(
-        st.session_state.kendaraan, key=lambda x: -x["berat"]
-    )
-
-    for k in kendaraan_diurutkan:
-        p, l = k["size"]
-        gol = k["gol"]
-        berat = k["berat"]
-
-        i, j = cari_lokasi(grid, p, l, berat, tx, ty)
-        if i is not None:
-            for dx in range(l):
-                for dy in range(p):
-                    grid[i + dx, j + dy] = gol
-            kendaraan_baru.append({
-                "gol": gol,
-                "pos": (i, j),
-                "size": (p, l),
-                "berat": berat
-            })
-
-    st.session_state.grid = grid
-    st.session_state.kendaraan = kendaraan_baru
 
 # Fungsi: tambahkan kendaraan
 def tambah_kendaraan(golongan, berat_manual=None):
