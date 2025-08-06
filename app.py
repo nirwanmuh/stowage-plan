@@ -113,15 +113,6 @@ with st.sidebar:
         st.session_state.grid = np.zeros((lebar_kapal, panjang_kapal), dtype=object)
         st.session_state.kendaraan = []
 
-# Sidebar: tambah kendaraan
-with st.sidebar:
-    st.header("Tambah Kendaraan")
-    golongan = st.selectbox("Golongan", list(KENDARAAN.keys()))
-    tambah = st.button("➕ Tambahkan ke Kapal")
-
-    if tambah:
-        tambah_kendaraan(golongan)
-
 # Fungsi: tambahkan kendaraan
 def tambah_kendaraan(golongan, berat_manual=None):
     kendaraan_baru = {
@@ -169,6 +160,17 @@ def tambah_kendaraan(golongan, berat_manual=None):
         st.success("Kendaraan berhasil dimuat dengan penataan ulang.")
     else:
         st.error("Kendaraan tidak bisa dimuat meskipun dengan penataan ulang.")
+
+
+# Sidebar: tambah kendaraan
+with st.sidebar:
+    st.header("Tambah Kendaraan")
+    golongan = st.selectbox("Golongan", list(KENDARAAN.keys()))
+    tambah = st.button("➕ Tambahkan ke Kapal")
+
+    if tambah:
+        tambah_kendaraan(golongan)
+
 
 # Fungsi: tampilkan grid
 def tampilkan_grid(grid):
