@@ -1,128 +1,96 @@
 import streamlit as st
-import math
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
-# Konstanta ukuran kendaraan (panjang, lebar)
+# Ukuran kendaraan: panjang (meter), lebar (meter)
 KENDARAAN = {
     "IV": (5, 3),
     "V": (7, 3),
     "VI": (10, 3),
     "VII": (12, 3),
     "VIII": (16, 3),
-    "IX": (21, 3)
+    "IX": (21, 3),
 }
 
-# Emoji kendaraan untuk visualisasi
-EMOJI = {
-    "IV": "🚗",
-    "V": "🚙",
-    "VI": "🚐",
-    "VII": "🚚",
-    "VIII": "🛻",
-    "IX": "🚛"
+# Warna kendaraan untuk visualisasi
+WARNA = {
+    "IV": "lightblue",
+    "V": "lightgreen",
+    "VI": "orange",
+    "VII": "yellow",
+    "VIII": "violet",
+    "IX": "red"
 }
 
-st.set_page_config(page_title="Simulasi Muatan Kapal", layout="wide")
-st.title("🚢 Simulasi Kapasitas Muat Kapal")
+st.set_page_config(layout="wide")
+st.title("🚢 Visualisasi Muatan Kapal")
 
-# Inisialisasi session state
-if "kendaraan_manual" not in st.session_state:
-    st.session_state.kendaraan_manual = []
+kapal_panjang = st.number_input("Masukkan panjang kapal (meter)", min_value=10, value=50)
+kapal_lebar = st.number_input("Masukkan lebar kapal (meter)", min_value=3, value=9)
 
-kapal_panjang = st.number_input("Masukkan panjang kapal (meter)", min_value=1, value=50)
-kapal_lebar = st.number_input("Masukkan lebar kapal (meter)", min_value=1, value=9)
+grid = np.full((kapal_panjang, kapal_lebar), "", dtype=object)
 
-blok_lebar = 3
-slot_lebar = kapal_lebar // blok_lebar
-slot_panjang = kapal_panjang
+# Fungsi untuk menempatkan kendaraan
+def tempatkan_kendaraan(grid, golongan, posisi_awal):
+    panjang, lebar = KENDARAAN[golongan]
+    x, y = posisi_awal
+    if x + panjang > grid.shape[0] or y + lebar > grid.shape[1]:
+        return False
+    for i in range(panjang):
+        for j in range(lebar):
+            if grid[x + i, y + j] != "":
+                return False
+    for i in range(panjang):
+        for j in range(lebar):
+            grid[x + i, y + j] = golongan
+    return True
 
-st.divider()
-st.subheader("➕ Tambah Kendaraan Manual")
-col1, col2 = st.columns(2)
-with col1:
-    jenis = st.selectbox("Pilih golongan kendaraan", list(KENDARAAN.keys()))
-with col2:
-    if st.button("Tambah Kendaraan"):
-        st.session_state.kendaraan_manual.append(jenis)
-
-if st.button("🔄 Reset Semua Kendaraan"):
-    st.session_state.kendaraan_manual = []
-
-st.write(f"Total kendaraan manual: {len(st.session_state.kendaraan_manual)}")
-st.write("Daftar kendaraan manual:", st.session_state.kendaraan_manual)
-
-# Fungsi kombinasi optimal (seperti sebelumnya)
-def kombinasi_optimal(panjang_kapal):
-    dp = [0] * (panjang_kapal + 1)
-    backtrack = [None] * (panjang_kapal + 1)
-
-    for i in range(1, panjang_kapal + 1):
+# Kombinasi optimal kendaraan per jalur
+def kombinasi_optimal(panjang):
+    dp = [0] * (panjang + 1)
+    backtrack = [None] * (panjang + 1)
+    for i in range(1, panjang + 1):
         for gol, (pj, _) in KENDARAAN.items():
-            if i >= pj:
-                if dp[i] < dp[i - pj] + 1:
-                    dp[i] = dp[i - pj] + 1
-                    backtrack[i] = gol
-
+            if i >= pj and dp[i] < dp[i - pj] + 1:
+                dp[i] = dp[i - pj] + 1
+                backtrack[i] = gol
     hasil = []
-    i = panjang_kapal
+    i = panjang
     while i > 0 and backtrack[i]:
         gol = backtrack[i]
-        pj, _ = KENDARAAN[gol]
         hasil.append(gol)
-        i -= pj
+        i -= KENDARAAN[gol][0]
     return hasil[::-1]
 
-# Visual grid dan isi kendaraan
-kapal_grid = [[] for _ in range(int(slot_lebar))]
+# Tempatkan kendaraan ke grid per jalur 3 meter
+slot_count = kapal_lebar // 3
+kendaraan_posisi = []
+for s in range(slot_count):
+    kolom_awal = s * 3
+    kendaraan_di_jalur = kombinasi_optimal(kapal_panjang)
+    posisi_x = 0
+    for gol in kendaraan_di_jalur:
+        if tempatkan_kendaraan(grid, gol, (posisi_x, kolom_awal)):
+            kendaraan_posisi.append((gol, posisi_x, kolom_awal))
+            posisi_x += KENDARAAN[gol][0]
 
-# 1. Isi dengan kendaraan manual
-manual_queue = st.session_state.kendaraan_manual.copy()
-for jalur in kapal_grid:
-    panjang_tersisa = slot_panjang
-    while manual_queue:
-        gol = manual_queue[0]
-        pj, _ = KENDARAAN[gol]
-        if panjang_tersisa >= pj:
-            jalur.append(gol)
-            panjang_tersisa -= pj
-            manual_queue.pop(0)
-        else:
-            break
+# Gambar grid visual
+fig, ax = plt.subplots(figsize=(kapal_lebar / 1.5, kapal_panjang / 3))
+ax.set_xlim(0, kapal_lebar)
+ax.set_ylim(0, kapal_panjang)
+ax.set_xticks(np.arange(0, kapal_lebar + 1, 1))
+ax.set_yticks(np.arange(0, kapal_panjang + 1, 1))
+ax.grid(True)
+ax.invert_yaxis()
+ax.set_title("🧱 Visualisasi Layout Kapal (Tampak Atas)")
 
-# 2. Tambahkan sisanya dari kombinasi optimal
-for jalur in kapal_grid:
-    panjang_tersisa = slot_panjang - sum(KENDARAAN[gol][0] for gol in jalur)
-    tambahan = kombinasi_optimal(panjang_tersisa)
-    jalur.extend(tambahan)
+# Tambahkan kendaraan ke gambar
+for gol, x, y in kendaraan_posisi:
+    panjang, lebar = KENDARAAN[gol]
+    rect = patches.Rectangle((y, x), lebar, panjang, linewidth=1, edgecolor='black', facecolor=WARNA[gol])
+    ax.add_patch(rect)
+    ax.text(y + lebar / 2, x + panjang / 2, gol, va='center', ha='center', fontsize=6)
 
-# Hitung statistik
-from collections import Counter
-total_counter = Counter()
-for jalur in kapal_grid:
-    total_counter.update(jalur)
-
-total_area_kapal = kapal_panjang * kapal_lebar
-total_area_terpakai = sum(
-    count * KENDARAAN[gol][0] * KENDARAAN[gol][1] for gol, count in total_counter.items()
-)
-sisa_area = total_area_kapal - total_area_terpakai
-
-st.divider()
-st.subheader("📊 Hasil Simulasi Muatan")
-
-for gol in sorted(total_counter):
-    st.write(f"- Golongan {gol}: {total_counter[gol]} unit")
-
-st.write(f"### Total area terpakai: {total_area_terpakai} m²")
-st.write(f"### Sisa area: {sisa_area} m² dari {total_area_kapal} m²")
-
-# Visualisasi Grid
-st.divider()
-st.subheader("🧱 Visualisasi Muatan Kapal per Jalur (dari depan ke belakang)")
-
-cols = st.columns(int(slot_lebar))
-for idx, col in enumerate(cols):
-    with col:
-        st.markdown(f"**Jalur {idx+1}**")
-        for gol in kapal_grid[idx]:
-            st.markdown(f"{EMOJI.get(gol, '📦')} Gol {gol}")
-
+# Tampilkan
+st.pyplot(fig)
