@@ -118,7 +118,7 @@ def tambah_kendaraan(golongan, berat_manual=None):
     kendaraan_baru = {
         "golongan": golongan,
         "ukuran": KENDARAAN[golongan],
-        "berat": berat_manual if berat_manual is not None else BERAT_KENDARAAN[golongan],
+        "berat": berat_manual if berat_manual is not None else BERAT[golongan],
     }
 
     # Gabungkan semua kendaraan yang sudah ada + yang baru
