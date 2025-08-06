@@ -40,6 +40,24 @@ if "grid" not in st.session_state:
 if "kendaraan" not in st.session_state:
     st.session_state.kendaraan = []
 
+# Fungsi: mencari tempat kosong
+def cari_lokasi(grid, p, l, berat, tx, ty):
+    min_score = float('inf')
+    best_pos = (None, None)
+
+    for i in range(grid.shape[0] - l + 1):
+        for j in range(grid.shape[1] - p + 1):
+            if np.all(grid[i:i + l, j:j + p] == 0):
+                cx = j + p / 2
+                cy = i + l / 2
+                dx = abs(cx - tx)
+                dy = abs(cy - ty)
+                score = berat * (dx**2 + dy**2)
+                if score < min_score:
+                    min_score = score
+                    best_pos = (i, j)
+    return best_pos
+
 #susun ulang kendaraan
 def susun_ulang_kendaraan():
     grid = np.zeros_like(st.session_state.grid, dtype=object)
@@ -111,25 +129,6 @@ with st.sidebar:
             "pos": (0, 0)
         })
         susun_ulang_kendaraan()
-
-# Fungsi: mencari tempat kosong
-def cari_lokasi(grid, p, l, berat, tx, ty):
-    min_score = float('inf')
-    best_pos = (None, None)
-
-    for i in range(grid.shape[0] - l + 1):
-        for j in range(grid.shape[1] - p + 1):
-            if np.all(grid[i:i + l, j:j + p] == 0):
-                cx = j + p / 2
-                cy = i + l / 2
-                dx = abs(cx - tx)
-                dy = abs(cy - ty)
-                score = berat * (dx**2 + dy**2)
-                if score < min_score:
-                    min_score = score
-                    best_pos = (i, j)
-    return best_pos
-
 
 # Fungsi: tambahkan kendaraan
 def tambah_kendaraan(golongan, berat_manual=None):
