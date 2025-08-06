@@ -121,52 +121,15 @@ def susun_ulang_kendaraan():
     st.session_state.kendaraan = kendaraan_baru
 
 # Fungsi: tambahkan kendaraan
-def tambah_kendaraan(golongan, berat_manual=None):
-    kendaraan_baru = {
-        "golongan": golongan,
-        "ukuran": KENDARAAN[golongan],
-        "berat": berat_manual if berat_manual is not None else BERAT_KENDARAAN[golongan],
-    }
-
-    # Gabungkan semua kendaraan yang sudah ada + yang baru
-    semua_kendaraan = st.session_state.kendaraan_list + [kendaraan_baru]
-
-    # Coba semua kombinasi penyusunan ulang
-    hasil_terbaik = None
-    sisa_ruang_terbanyak = -1
-    keseimbangan_terbaik = float('inf')
-
-    # Reset kapal
-    st.session_state.kapal.reset_kapal()
-
-    # Coba semua permutasi penyusunan ulang
-    from itertools import permutations
-    for urutan in permutations(semua_kendaraan):
-        kapal_temp = st.session_state.kapal.copy()
-        gagal = False
-        for k in urutan:
-            if not kapal_temp.tambah_kendaraan_otomatis(k):
-                gagal = True
-                break
-        if not gagal:
-            # Hitung sisa ruang + keseimbangan
-            sisa_ruang = kapal_temp.total_sisa_grid()
-            keseimbangan = kapal_temp.hitung_titik_berat()
-
-            if hasil_terbaik is None or sisa_ruang > sisa_ruang_terbanyak or (
-                sisa_ruang == sisa_ruang_terbanyak and keseimbangan < keseimbangan_terbaik
-            ):
-                hasil_terbaik = kapal_temp
-                sisa_ruang_terbanyak = sisa_ruang
-                keseimbangan_terbaik = keseimbangan
-
-    # Simpan hasil terbaik jika ada
-    if hasil_terbaik:
-        st.session_state.kapal = hasil_terbaik
-        st.session_state.kendaraan_list = semua_kendaraan
-        st.success("Kendaraan berhasil dimuat dengan penataan ulang.")
-    else:
-        st.error("Kendaraan tidak bisa dimuat meskipun dengan penataan ulang.")
+def tambahkan_kendaraan(gol):
+    p, l = KENDARAAN[gol]
+    berat = BERAT[gol]
+    st.session_state.kendaraan.append({
+        "gol": gol,
+        "size": (p, l),
+        "berat": berat
+    })
+    susun_ulang_kendaraan()  # penyusunan ulang total
 
 # Fungsi: tampilkan grid
 def tampilkan_grid(grid):
