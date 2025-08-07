@@ -96,16 +96,9 @@ def susun_ulang_kendaraan():
     st.session_state.grid = grid
     st.session_state.kendaraan = kendaraan_baru
 
-def parse_float(text, default=0.0):
-    try:
-        return float(text.replace(',', '.'))
-    except:
-        return default
-        
 # Sidebar: konfigurasi kapal
 with st.sidebar:
     st.header("Konfigurasi Kapal")
-
     panjang_kapal = st.number_input("Panjang Kapal (meter)", min_value=1, value=30)
     lebar_kapal = st.number_input("Lebar Kapal (meter)", min_value=1, value=12)
     titik_seimbang = st.number_input(
@@ -113,8 +106,7 @@ with st.sidebar:
         min_value=0,
         max_value=panjang_kapal,
         value=panjang_kapal // 2
-    )
-    
+    ) 
     if st.button("🔄 Buat Ulang Kapal"):
         st.session_state.kapal = {
             "panjang": panjang_kapal,
@@ -148,53 +140,33 @@ def tambah_kendaraan(golongan, berat_manual=None):
         grid = np.zeros((kapal["lebar"], kapal["panjang"]), dtype=object)
         temp_kendaraan = []
         gagal = False
-    
-        orientasi_golongan = {}  # <- Menyimpan orientasi per golongan
-    
+
         for k in urutan:
             gol = k["gol"]
             berat = k["berat"]
-            p, l = k["size"]  # P selalu arah depan-belakang
-        
-            # Posisi hanya dicoba dalam orientasi horizontal
-            i, j = cari_lokasi(grid, p, l, berat, tx, ty)
-            if i is not None:
-                for dx in range(l):
-                    for dy in range(p):
-                        grid[i + dx, j + dy] = gol
-                temp_kendaraan.append({
-                    "gol": gol,
-                    "pos": (i, j),
-                    "size": (p, l),
-                    "berat": berat
-                })
-                ditempatkan = True
-            else:
+            ukuran_asli = k["size"]
+            ditempatkan = False
 
-                # Coba kedua orientasi hanya jika golongan ini belum dipakai
-                ukuran_asli = k["size"]
-                for size in [ukuran_asli, ukuran_asli[::-1]]:                   
-                    p, l = size
-                    i, j = cari_lokasi(grid, p, l, berat, tx, ty)
-                    if i is not None:
-                        # Simpan orientasi ini untuk golongan tersebut
-                        orientasi_golongan[gol] = size
-                        for dx in range(l):
-                            for dy in range(p):
-                                grid[i + dx, j + dy] = gol
-                        temp_kendaraan.append({
-                            "gol": gol,
-                            "pos": (i, j),
-                            "size": (p, l),
-                            "berat": berat
-                        })
-                        ditempatkan = True
-                        break
-    
+            for size in [ukuran_asli, ukuran_asli[::-1]]:
+                p, l = size
+                i, j = cari_lokasi(grid, p, l, berat, tx, ty)
+                if i is not None:
+                    for dx in range(l):
+                        for dy in range(p):
+                            grid[i + dx, j + dy] = gol
+                    temp_kendaraan.append({
+                        "gol": gol,
+                        "pos": (i, j),
+                        "size": (p, l),
+                        "berat": berat
+                    })
+                    ditempatkan = True
+                    break
+
             if not ditempatkan:
                 gagal = True
                 break
-            
+
         if not gagal:
             sisa = np.sum(grid == 0)
             total_mx, total_my = 0, 0
