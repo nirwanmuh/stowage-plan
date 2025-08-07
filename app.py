@@ -147,7 +147,9 @@ def tambah_kendaraan(golongan, berat_manual=None):
             ukuran_asli = k["size"]
             ditempatkan = False
 
-            for size in [ukuran_asli, ukuran_asli[::-1]]:
+            # Prioritaskan orientasi vertikal (tinggi lebih besar dari lebar)
+            ukuran_vertikal_dulu = [ukuran_asli, ukuran_asli[::-1]] if ukuran_asli[0] >= ukuran_asli[1] else [ukuran_asli[::-1], ukuran_asli]
+            for size in ukuran_vertikal_dulu:
                 p, l = size
                 i, j = cari_lokasi(grid, p, l, berat, tx, ty)
                 if i is not None:
