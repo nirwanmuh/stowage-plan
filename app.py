@@ -163,7 +163,7 @@ def tambah_kendaraan(golongan, berat_manual=None):
 
     if not ditempatkan:
         gagal = True
-        break
+    break
 
         for dx in range(l):
             for dy in range(p):
