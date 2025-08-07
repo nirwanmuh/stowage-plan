@@ -137,18 +137,34 @@ def tambah_kendaraan(golongan, berat_manual=None):
     keseimbangan_terbaik = float('inf')
     kendaraan_terbaik = None
 
-    for urutan in permutations(semua_kendaraan):
-        grid = np.zeros_like(grid_awal, dtype=object)
-        temp_kendaraan = []
-        gagal = False
-        for k in urutan:
-            p, l = k["size"]
-            berat = k["berat"]
-            gol = k["gol"]
-            i, j = cari_lokasi(grid, p, l, berat, tx, ty)
-            if i is None:
-                gagal = True
-                break
+    for k in urutan:
+    gol = k["gol"]
+    berat = k["berat"]
+    ukuran_asli = k["size"]
+
+    ditempatkan = False
+    # Coba dua orientasi: (p, l) dan (l, p)
+    for size in [ukuran_asli, ukuran_asli[::-1]]:
+        p, l = size
+        i, j = cari_lokasi(grid, p, l, berat, tx, ty)
+        if i is not None:
+            # Tempat tersedia, isi grid
+            for dx in range(l):
+                for dy in range(p):
+                    grid[i + dx, j + dy] = gol
+            temp_kendaraan.append({
+                "gol": gol,
+                "pos": (i, j),
+                "size": (p, l),
+                "berat": berat
+            })
+            ditempatkan = True
+            break
+
+    if not ditempatkan:
+        gagal = True
+        break
+
             for dx in range(l):
                 for dy in range(p):
                     grid[i + dx, j + dy] = gol
