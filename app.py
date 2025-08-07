@@ -96,9 +96,24 @@ def susun_ulang_kendaraan():
     st.session_state.grid = grid
     st.session_state.kendaraan = kendaraan_baru
 
+def parse_float(text, default=0.0):
+    try:
+        return float(text.replace(',', '.'))
+    except:
+        return default
+        
 # Sidebar: konfigurasi kapal
 with st.sidebar:
     st.header("Konfigurasi Kapal")
+
+    panjang_input = st.text_input("Panjang Kapal (meter)", "30")
+    lebar_input = st.text_input("Lebar Kapal (meter)", "12")
+    titik_input = st.text_input("Titik Seimbang Horizontal (meter)", "15")
+    
+    panjang_kapal = parse_float(panjang_input, 30)
+    lebar_kapal = parse_float(lebar_input, 12)
+    titik_seimbang = parse_float(titik_input, panjang_kapal / 2)
+
     panjang_kapal = st.number_input("Panjang Kapal (meter)", min_value=1, value=30)
     lebar_kapal = st.number_input("Lebar Kapal (meter)", min_value=1, value=12)
     titik_seimbang = st.number_input(
