@@ -165,15 +165,15 @@ def tambah_kendaraan(golongan, berat_manual=None):
         gagal = True
     break
 
-        for dx in range(l):
-            for dy in range(p):
-                grid[i + dx, j + dy] = gol
-        temp_kendaraan.append({
-            "gol": gol,
-            "pos": (i, j),
-            "size": (p, l),
-            "berat": berat
-        })
+    for dx in range(l):
+        for dy in range(p):
+            grid[i + dx, j + dy] = gol
+    temp_kendaraan.append({
+        "gol": gol,
+        "pos": (i, j),
+        "size": (p, l),
+        "berat": berat
+    })
 
         if not gagal:
             sisa = np.sum(grid == 0)
