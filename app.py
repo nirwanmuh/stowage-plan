@@ -167,12 +167,7 @@ def tambah_kendaraan(golongan, berat_manual=None):
                     ditempatkan = True
             else:
                 # Coba kedua orientasi hanya jika golongan ini belum dipakai
-                if ukuran_asli[0] >= ukuran_asli[1]:
-                    prioritas_orientasi = [ukuran_asli[::-1], ukuran_asli]
-                else:
-                    prioritas_orientasi = [ukuran_asli, ukuran_asli[::-1]]
-                
-                for size in prioritas_orientasi:                    
+                for size in [ukuran_asli, ukuran_asli[::-1]]:                   
                     p, l = size
                     i, j = cari_lokasi(grid, p, l, berat, tx, ty)
                     if i is not None:
