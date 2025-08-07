@@ -146,25 +146,21 @@ def tambah_kendaraan(golongan, berat_manual=None):
         for k in urutan:
             gol = k["gol"]
             berat = k["berat"]
-            ukuran_asli = k["size"]
-            ditempatkan = False
-    
-            # Prioritaskan orientasi vertikal, tetapi kunci per golongan
-            if gol in orientasi_golongan:
-                orientasi_terpakai = orientasi_golongan[gol]
-                p, l = orientasi_terpakai
-                i, j = cari_lokasi(grid, p, l, berat, tx, ty)
-                if i is not None:
-                    for dx in range(l):
-                        for dy in range(p):
-                            grid[i + dx, j + dy] = gol
-                    temp_kendaraan.append({
-                        "gol": gol,
-                        "pos": (i, j),
-                        "size": (p, l),
-                        "berat": berat
-                    })
-                    ditempatkan = True
+            p, l = k["size"]  # P selalu arah depan-belakang
+        
+            # Posisi hanya dicoba dalam orientasi horizontal
+            i, j = cari_lokasi(grid, p, l, berat, tx, ty)
+            if i is not None:
+                for dx in range(l):
+                    for dy in range(p):
+                        grid[i + dx, j + dy] = gol
+                temp_kendaraan.append({
+                    "gol": gol,
+                    "pos": (i, j),
+                    "size": (p, l),
+                    "berat": berat
+                })
+                ditempatkan = True
             else:
                 # Coba kedua orientasi hanya jika golongan ini belum dipakai
                 for size in [ukuran_asli, ukuran_asli[::-1]]:                   
