@@ -140,17 +140,19 @@ def tambah_kendaraan(golongan, berat_manual=None):
         grid = np.zeros((kapal["lebar"], kapal["panjang"]), dtype=object)
         temp_kendaraan = []
         gagal = False
-
+    
+        orientasi_golongan = {}  # <- Menyimpan orientasi per golongan
+    
         for k in urutan:
             gol = k["gol"]
             berat = k["berat"]
             ukuran_asli = k["size"]
             ditempatkan = False
-
-            # Prioritaskan orientasi vertikal (tinggi lebih besar dari lebar)
-            ukuran_vertikal_dulu = [ukuran_asli, ukuran_asli[::-1]] if ukuran_asli[0] >= ukuran_asli[1] else [ukuran_asli[::-1], ukuran_asli]
-            for size in ukuran_vertikal_dulu:
-                p, l = size
+    
+            # Prioritaskan orientasi vertikal, tetapi kunci per golongan
+            if gol in orientasi_golongan:
+                orientasi_terpakai = orientasi_golongan[gol]
+                p, l = orientasi_terpakai
                 i, j = cari_lokasi(grid, p, l, berat, tx, ty)
                 if i is not None:
                     for dx in range(l):
@@ -163,12 +165,30 @@ def tambah_kendaraan(golongan, berat_manual=None):
                         "berat": berat
                     })
                     ditempatkan = True
-                    break
-
+            else:
+                # Coba kedua orientasi hanya jika golongan ini belum dipakai
+                for size in [ukuran_asli, ukuran_asli[::-1]]:
+                    p, l = size
+                    i, j = cari_lokasi(grid, p, l, berat, tx, ty)
+                    if i is not None:
+                        # Simpan orientasi ini untuk golongan tersebut
+                        orientasi_golongan[gol] = size
+                        for dx in range(l):
+                            for dy in range(p):
+                                grid[i + dx, j + dy] = gol
+                        temp_kendaraan.append({
+                            "gol": gol,
+                            "pos": (i, j),
+                            "size": (p, l),
+                            "berat": berat
+                        })
+                        ditempatkan = True
+                        break
+    
             if not ditempatkan:
                 gagal = True
                 break
-
+            
         if not gagal:
             sisa = np.sum(grid == 0)
             total_mx, total_my = 0, 0
