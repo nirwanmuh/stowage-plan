@@ -172,7 +172,8 @@ def tambah_kendaraan(golongan, berat_manual=None):
                 else:
                     prioritas_orientasi = [ukuran_asli, ukuran_asli[::-1]]
                 
-                for size in prioritas_orientasi:                    p, l = size
+                for size in prioritas_orientasi:                    
+                    p, l = size
                     i, j = cari_lokasi(grid, p, l, berat, tx, ty)
                     if i is not None:
                         # Simpan orientasi ini untuk golongan tersebut
