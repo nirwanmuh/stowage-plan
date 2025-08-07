@@ -127,53 +127,45 @@ def tambah_kendaraan(golongan, berat_manual=None):
 
     semua_kendaraan = st.session_state.kendaraan + [kendaraan_baru]
 
-    grid_awal = st.session_state.grid
     kapal = st.session_state.kapal
     tx = kapal["titik_seimbang_h"]
     ty = kapal["titik_seimbang_v"]
 
     hasil_terbaik = None
+    kendaraan_terbaik = None
     sisa_terbanyak = -1
     keseimbangan_terbaik = float('inf')
-    kendaraan_terbaik = None
 
-    for k in urutan:
-        gol = k["gol"]
-        berat = k["berat"]
-        ukuran_asli = k["size"]
-    
-        ditempatkan = False
-        # Coba dua orientasi: (p, l) dan (l, p)
-        for size in [ukuran_asli, ukuran_asli[::-1]]:
-            p, l = size
-            i, j = cari_lokasi(grid, p, l, berat, tx, ty)
-            if i is not None:
-                # Tempat tersedia, isi grid
-                for dx in range(l):
-                    for dy in range(p):
-                        grid[i + dx, j + dy] = gol
-                temp_kendaraan.append({
-                    "gol": gol,
-                    "pos": (i, j),
-                    "size": (p, l),
-                    "berat": berat
-                })
-                ditempatkan = True
+    for urutan in permutations(semua_kendaraan):
+        grid = np.zeros((kapal["lebar"], kapal["panjang"]), dtype=object)
+        temp_kendaraan = []
+        gagal = False
+
+        for k in urutan:
+            gol = k["gol"]
+            berat = k["berat"]
+            ukuran_asli = k["size"]
+            ditempatkan = False
+
+            for size in [ukuran_asli, ukuran_asli[::-1]]:
+                p, l = size
+                i, j = cari_lokasi(grid, p, l, berat, tx, ty)
+                if i is not None:
+                    for dx in range(l):
+                        for dy in range(p):
+                            grid[i + dx, j + dy] = gol
+                    temp_kendaraan.append({
+                        "gol": gol,
+                        "pos": (i, j),
+                        "size": (p, l),
+                        "berat": berat
+                    })
+                    ditempatkan = True
+                    break
+
+            if not ditempatkan:
+                gagal = True
                 break
-
-    if not ditempatkan:
-        gagal = True
-    break
-
-    for dx in range(l):
-        for dy in range(p):
-            grid[i + dx, j + dy] = gol
-    temp_kendaraan.append({
-        "gol": gol,
-        "pos": (i, j),
-        "size": (p, l),
-        "berat": berat
-    })
 
         if not gagal:
             sisa = np.sum(grid == 0)
@@ -191,10 +183,10 @@ def tambah_kendaraan(golongan, berat_manual=None):
 
             if hasil_terbaik is None or sisa > sisa_terbanyak or (
                 sisa == sisa_terbanyak and total_momen < keseimbangan_terbaik):
-                hasil_terbaik = grid
+                hasil_terbaik = copy.deepcopy(grid)
+                kendaraan_terbaik = copy.deepcopy(temp_kendaraan)
                 sisa_terbanyak = sisa
                 keseimbangan_terbaik = total_momen
-                kendaraan_terbaik = temp_kendaraan
 
     if hasil_terbaik is not None:
         st.session_state.grid = hasil_terbaik
