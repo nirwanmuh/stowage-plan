@@ -88,7 +88,7 @@ def validate_placements(placements, panjang, lebar, expected_count):
     return True, None
 
 def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
-    STEP = 1  # langkah pencarian posisi (meter)
+    STEP = 0.1  # langkah pencarian posisi (meter)
     placements = []
     if not gol_list:
         return placements
