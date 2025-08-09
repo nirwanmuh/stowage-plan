@@ -88,7 +88,7 @@ def validate_placements(placements, panjang, lebar, expected_count):
     return True, None
 
 def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
-    STEP = 0.5  # langkah pencarian posisi (meter)
+    STEP = 1  # langkah pencarian posisi (meter)
     placements = []
     if not gol_list:
         return placements
@@ -203,7 +203,7 @@ fig, ax = plt.subplots(figsize=(10, 5))
 ax.set_xlim(0, panjang_kapal)
 ax.set_ylim(0, lebar_kapal)
 ax.set_aspect('equal')
-ax.set_title("Visualisasi Muat Kapal (Tanpa Menumpuk)")
+ax.set_title("Visualisasi Stowage Plan")
 
 # Outline kapal
 kapal_outline = Rectangle((0, 0), panjang_kapal, lebar_kapal,
