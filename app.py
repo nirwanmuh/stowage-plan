@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import math
 
-st.set_page_config(page_title="Simulasi Muat Kapal (No Overlap + Balance)", layout="wide")
+st.set_page_config(page_title="Stowage Plan", layout="wide")
 
 # ======= Konfigurasi kendaraan (dim dalam m, berat dalam ton) =======
 KENDARAAN = {
@@ -192,7 +192,7 @@ selisih_horizontal = y_cm - titik_seimbang_horizontal
 dist_to_target = math.hypot(selisih_vertikal, selisih_horizontal) if total_berat > 0 else 0.0
 
 # ======= UI output =======
-st.title("Simulasi Muat Kapal — Penataan Tanpa Menumpuk (Balance XY)")
+st.title("Stowage Plan")
 
 # ======= Visualisasi di atas =======
 fig, ax = plt.subplots(figsize=(10, 5))
