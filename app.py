@@ -40,7 +40,6 @@ pilih_gol = st.sidebar.selectbox("Pilih Golongan", list(KENDARAAN.keys()))
 
 # ======= Helper functions =======
 def compute_cm(placements):
-    """Compute total mass and center of mass (x_cm, y_cm). placements list of (gol, x, y)."""
     total_mass = 0.0
     mx = 0.0
     my = 0.0
@@ -58,7 +57,6 @@ def compute_cm(placements):
         return 0.0, 0.0, 0.0
 
 def has_overlap(placements, eps=1e-9):
-    """Return True if any two rectangles overlap."""
     n = len(placements)
     for i in range(n):
         gol1, x1, y1 = placements[i]
@@ -66,55 +64,41 @@ def has_overlap(placements, eps=1e-9):
         for j in range(i+1, n):
             gol2, x2, y2 = placements[j]
             w2, h2 = KENDARAAN[gol2]["dim"]
-            # check overlap: if rectangles intersect area > 0
             if not (x1 + w1 <= x2 + eps or x2 + w2 <= x1 + eps or y1 + h1 <= y2 + eps or y2 + h2 <= y1 + eps):
                 return True
     return False
 
 def validate_placements(placements, panjang, lebar, expected_count):
-    """Checks: all placed, within bounds, no overlap."""
     if len(placements) != expected_count:
         return False, "tidak semua kendaraan dapat ditempatkan"
-    # bounds check
     for gol, x, y in placements:
         pjg, lbr = KENDARAAN[gol]["dim"]
         if x < -1e-6 or y < -1e-6 or (x + pjg) > panjang + 1e-6 or (y + lbr) > lebar + 1e-6:
             return False, "beberapa kendaraan keluar batas kapal"
-    # overlap check
     if has_overlap(placements):
         return False, "terdapat tumpang tindih kendaraan"
     return True, None
 
-# arrange function (heuristic greedy minimizing distance to target CM)
 def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
     placements = []
     if not gol_list:
         return placements
-
-    # rows based on minimal vehicle width (height)
     min_row_height = min(KENDARAAN[g]["dim"][1] for g in KENDARAAN)
     n_rows = max(1, int(lebar_kapal // min_row_height))
     row_height = min_row_height
     total_rows_height = n_rows * row_height
     start_y = max(0.0, (lebar_kapal - total_rows_height) / 2.0)
     row_ys = [start_y + i * row_height for i in range(n_rows)]
-
-    # state per row
     row_state = [{"left_cursor": x_target, "right_cursor": x_target, "placed": []} for _ in range(n_rows)]
-
-    # sort vehicles by weight descending
     sorted_gols = sorted(gol_list, key=lambda g: -KENDARAAN[g]["berat"])
 
-    # place one by one, choose best row/side minimizing CM distance
     for gol in sorted_gols:
         best_choice = None
         best_score = float("inf")
-
         for ri in range(n_rows):
             pjg, lbr = KENDARAAN[gol]["dim"]
             right_x = row_state[ri]["right_cursor"]
             left_x = row_state[ri]["left_cursor"] - pjg
-
             candidates = [("right", right_x), ("left", left_x)]
             for side, cand_x in candidates:
                 cand_y = row_ys[ri]
@@ -122,14 +106,11 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
                 tmp.append((gol, float(cand_x), float(cand_y)))
                 _, xcm_tmp, ycm_tmp = compute_cm(tmp)
                 score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
-                # heavy penalty if out of bounds
                 if cand_x < -1e-6 or (cand_x + pjg) > panjang_kapal + 1e-6:
                     score += 1e6
                 if score < best_score:
                     best_score = score
                     best_choice = (ri, side, cand_x, cand_y)
-
-        # commit best
         if best_choice is not None:
             ri, side, x_chosen, y_chosen = best_choice
             placements.append((gol, float(x_chosen), float(y_chosen)))
@@ -139,7 +120,6 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
             else:
                 row_state[ri]["left_cursor"] = x_chosen
         else:
-            # fallback: try place left-to-right from x=0 in any row if possible
             placed_flag = False
             for ri in range(n_rows):
                 x_try = 0.0
@@ -151,10 +131,8 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
                     placed_flag = True
                     break
             if not placed_flag:
-                # cannot place
                 continue
 
-    # shift whole layout if out of bounds
     if placements:
         min_x = min(x for (_, x, _) in placements)
         max_x = max(x + KENDARAAN[gol]["dim"][0] for (gol, x, _) in placements)
@@ -166,7 +144,6 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
         if shift != 0.0:
             placements = [(gol, float(x + shift), float(y)) for gol, x, y in placements]
 
-    # clamp
     final = []
     for gol, x, y in placements:
         pjg, lbr = KENDARAAN[gol]["dim"]
@@ -176,7 +153,7 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
 
     return final
 
-# ======= Add vehicle handler (attempt first, then commit or error) =======
+# ======= Add vehicle handler =======
 if st.sidebar.button("Tambah Kendaraan"):
     candidate_list = st.session_state.kendaraan + [pilih_gol]
     candidate_placements = arrange_balance_xy(candidate_list, panjang_kapal, lebar_kapal,
@@ -186,16 +163,14 @@ if st.sidebar.button("Tambah Kendaraan"):
         st.session_state.kendaraan.append(pilih_gol)
         st.success(f"Berhasil menambahkan golongan {pilih_gol}")
     else:
-        # sesuai permintaan: pesan error utama
         st.error(f"tidak bisa menambahkan golongan {pilih_gol} lagi")
-        # beri detail alasan (opsional, agar user tahu kenapa)
         st.write(f"*Alasan: {reason}*")
 
 if st.sidebar.button("Reset Kendaraan"):
     st.session_state.kendaraan = []
     st.success("Daftar kendaraan dikosongkan")
 
-# ======= Arrange current kendaraan for display =======
+# ======= Arrange current kendaraan =======
 placements = arrange_balance_xy(st.session_state.kendaraan, panjang_kapal, lebar_kapal,
                                 titik_seimbang_vertikal, titik_seimbang_horizontal)
 
@@ -211,6 +186,35 @@ dist_to_target = math.hypot(selisih_vertikal, selisih_horizontal) if total_berat
 # ======= UI output =======
 st.title("Simulasi Muat Kapal — Penataan Tanpa Menumpuk (Balance XY)")
 
+# ======= Visualisasi di atas =======
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.set_xlim(0, panjang_kapal)
+ax.set_ylim(0, lebar_kapal)
+ax.set_aspect('equal')
+ax.set_title("Visualisasi Muat Kapal (Tanpa Menumpuk)")
+
+kapal_outline = Rectangle((0, 0), panjang_kapal, lebar_kapal, linewidth=1.5, edgecolor='black', facecolor='none')
+ax.add_patch(kapal_outline)
+
+for gol, x, y in placements:
+    pjg, lbr = KENDARAAN[gol]["dim"]
+    berat = KENDARAAN[gol]["berat"]
+    rect = Rectangle((x, y), pjg, lbr, linewidth=1.2, edgecolor='blue', facecolor='skyblue', alpha=0.6)
+    ax.add_patch(rect)
+    ax.text(x + pjg / 2.0, y + lbr / 2.0, f"{gol}\n{berat}t", ha='center', va='center', fontsize=8, color='red')
+    corners = [(x, y), (x + pjg, y), (x, y + lbr), (x + pjg, y + lbr)]
+    for cx, cy in corners:
+        ax.plot(cx, cy, 'ko', markersize=3)
+
+if total_berat > 0:
+    ax.plot(x_cm, y_cm, 'rx', markersize=10, label="Titik Berat Muatan")
+ax.axvline(titik_seimbang_vertikal, color='green', linestyle='--', label="Titik Seimbang Vertikal")
+ax.axhline(titik_seimbang_horizontal, color='orange', linestyle='--', label="Titik Seimbang Horizontal")
+ax.legend()
+
+st.pyplot(fig)
+
+# ======= Ringkasan & Daftar =======
 col1, col2 = st.columns([1.0, 1.0])
 with col1:
     st.subheader("Ringkasan Muatan")
@@ -240,34 +244,3 @@ with col2:
         st.table(table)
     else:
         st.write("Belum ada kendaraan.")
-
-# ======= Visualisasi =======
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.set_xlim(0, panjang_kapal)
-ax.set_ylim(0, lebar_kapal)
-ax.set_aspect('equal')
-ax.set_title("Visualisasi Muat Kapal (Tanpa Menumpuk)")
-
-# kapal outline
-kapal_outline = Rectangle((0, 0), panjang_kapal, lebar_kapal, linewidth=1.5, edgecolor='black', facecolor='none')
-ax.add_patch(kapal_outline)
-
-# gambar kendaraan
-for gol, x, y in placements:
-    pjg, lbr = KENDARAAN[gol]["dim"]
-    berat = KENDARAAN[gol]["berat"]
-    rect = Rectangle((x, y), pjg, lbr, linewidth=1.2, edgecolor='blue', facecolor='skyblue', alpha=0.6)
-    ax.add_patch(rect)
-    ax.text(x + pjg / 2.0, y + lbr / 2.0, f"{gol}\n{berat}t", ha='center', va='center', fontsize=8, color='red')
-    # titik pojok
-    corners = [(x, y), (x + pjg, y), (x, y + lbr), (x + pjg, y + lbr)]
-    for cx, cy in corners:
-        ax.plot(cx, cy, 'ko', markersize=3)
-
-# titik berat muatan dan garis seimbang
-if total_berat > 0:
-    ax.plot(x_cm, y_cm, 'rx', markersize=10, label="Titik Berat Muatan")
-ax.axvline(titik_seimbang_vertikal, color='green', linestyle='--', label="Titik Seimbang Vertikal")
-ax.axhline(titik_seimbang_horizontal, color='orange', linestyle='--', label="Titik Seimbang Horizontal")
-ax.legend()
-st.pyplot(fig)
