@@ -6,14 +6,14 @@ from matplotlib.patches import Rectangle
 
 st.set_page_config(page_title="Simulasi Muat Kapal", layout="wide")
 
-# Data ukuran kendaraan (panjang, lebar) meter
+# Data ukuran kendaraan (panjang, lebar) meter dan berat (ton)
 KENDARAAN = {
-    "IV": (5, 3),
-    "V": (7, 3),
-    "VI": (10, 3),
-    "VII": (12, 3),
-    "VIII": (16, 3),
-    "IX": (21, 3),
+    "IV": {"dim": (5, 3), "berat": 1},
+    "V": {"dim": (7, 3), "berat": 8},
+    "VI": {"dim": (10, 3), "berat": 12},
+    "VII": {"dim": (12, 3), "berat": 15},
+    "VIII": {"dim": (16, 3), "berat": 18},
+    "IX": {"dim": (21, 3), "berat": 30},
 }
 
 # Session state untuk menyimpan kendaraan
@@ -44,7 +44,7 @@ def cari_kombinasi_optimal(kendaraan_list):
         total_luas = 0.0
 
         for gol in perm:
-            pjg, lbr = KENDARAAN[gol]
+            pjg, lbr = KENDARAAN[gol]["dim"]
 
             if posisi_x + pjg <= panjang_kapal and posisi_y + lbr <= lebar_kapal:
                 combo.append((gol, posisi_x, posisi_y))
@@ -72,10 +72,14 @@ combo_optimal, luas_terpakai = cari_kombinasi_optimal(st.session_state.kendaraan
 luas_kapal = panjang_kapal * lebar_kapal
 sisa_luas = luas_kapal - luas_terpakai
 
+# Hitung total berat
+total_berat = sum(KENDARAAN[gol]["berat"] for gol, _, _ in combo_optimal)
+
 # Tampilkan hasil
 st.write(f"**Total Luas Kapal:** {luas_kapal:.2f} m²")
 st.write(f"**Luas Terpakai:** {luas_terpakai:.2f} m²")
 st.write(f"**Sisa Luas:** {sisa_luas:.2f} m²")
+st.write(f"**Total Berat Muatan:** {total_berat:.2f} ton")
 
 # Visualisasi kotak + titik pojok
 fig, ax = plt.subplots(figsize=(10, 5))
@@ -91,11 +95,13 @@ ax.add_patch(kapal_outline)
 
 # Gambar kendaraan
 for gol, x, y in combo_optimal:
-    pjg, lbr = KENDARAAN[gol]
+    pjg, lbr = KENDARAAN[gol]["dim"]
+    berat = KENDARAAN[gol]["berat"]
     rect = Rectangle((x, y), pjg, lbr, 
                      linewidth=1.5, edgecolor='blue', facecolor='skyblue', alpha=0.6)
     ax.add_patch(rect)
-    ax.text(x + pjg/2, y + lbr/2, gol, color="red", ha="center", va="center", fontsize=9, fontweight="bold")
+    ax.text(x + pjg/2, y + lbr/2, f"{gol}\n{berat}t", 
+            color="red", ha="center", va="center", fontsize=8, fontweight="bold")
     # Titik pojok kendaraan
     pojok = [(x, y), (x+pjg, y), (x, y+lbr), (x+pjg, y+lbr)]
     for px, py in pojok:
