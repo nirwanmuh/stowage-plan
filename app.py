@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
 
-st.set_page_config(page_title="Simulasi Muat Kapal (Balance Packing)", layout="wide")
+st.set_page_config(page_title="Simulasi Muat Kapal (Balance XY)", layout="wide")
 
 # ======= Konfigurasi kendaraan (dim dalam m, berat dalam ton) =======
 KENDARAAN = {
@@ -17,7 +17,7 @@ KENDARAAN = {
 
 # ======= Session state =======
 if "kendaraan" not in st.session_state:
-    st.session_state.kendaraan = []  # list of golongan strings
+    st.session_state.kendaraan = []
 
 # ======= Sidebar input =======
 st.sidebar.header("Konfigurasi Kapal")
@@ -39,103 +39,126 @@ if st.sidebar.button("Tambah Kendaraan"):
 if st.sidebar.button("Reset Kendaraan"):
     st.session_state.kendaraan = []
 
-# ======= Fungsi penataan untuk menjaga titik berat mendekati target =======
-def arrange_to_balance(gol_list, panjang_kapal, lebar_kapal, x_target):
+# ======= Helper functions =======
+def compute_cm(placements):
+    """Compute total weight and center of mass (x_cm, y_cm). placements list of (gol, x, y)."""
+    total_mass = 0.0
+    mx = 0.0
+    my = 0.0
+    for gol, x, y in placements:
+        m = KENDARAAN[gol]["berat"]
+        pjg, lbr = KENDARAAN[gol]["dim"]
+        cx = x + pjg / 2.0
+        cy = y + lbr / 2.0
+        mx += cx * m
+        my += cy * m
+        total_mass += m
+    if total_mass > 0:
+        return total_mass, mx / total_mass, my / total_mass
+    else:
+        return 0.0, 0.0, 0.0
+
+def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
     """
-    Heuristik penataan:
-    - sort by weight desc
-    - buat beberapa baris berdasarkan lebar kendaraan minimal
-    - assign each vehicle to the row with smallest total mass (to balance vertically)
-    - within row, place vehicles alternating left/right around x_target (centered packing)
-    - shift whole layout if goes out of bounds, fallback to greedy packing if necessary
+    Greedy heuristic:
+    - sort vehicles by weight desc
+    - create rows based on minimal vehicle width (lbr)
+    - for each vehicle (heavy->light) try placing at every row and side (left/right)
+      using the current cursors for that row, pick the placement that minimizes distance
+      from (x_target, y_target) for the resulting center of mass.
+    - if after all placements some vehicles overflow bounds, shift or fallback to row greedy.
     """
+    placements = []
     if not gol_list:
-        return []
+        return placements
 
-    # parameters
-    min_row_height = min(KENDARAAN[g]["dim"][1] for g in KENDARAAN)  # typically 3.0
+    # rows
+    min_row_height = min(KENDARAAN[g]["dim"][1] for g in KENDARAAN)  # typical 3.0
     n_rows = max(1, int(lebar_kapal // min_row_height))
-    # if rounding leaves small leftover, still ok; we'll compute y positions centered
     row_height = min_row_height
+    total_rows_height = n_rows * row_height
+    start_y = max(0.0, (lebar_kapal - total_rows_height) / 2.0)
+    row_ys = [start_y + i * row_height for i in range(n_rows)]
 
-    # create rows with data: placed (list), total_mass
-    rows = [{"placed": [], "mass": 0.0, "left_cursor": x_target, "right_cursor": x_target, "toggle": 0} for _ in range(n_rows)]
+    # state per row: left_cursor (x coordinate where next left placement will start), right_cursor
+    row_state = [{"left_cursor": x_target, "right_cursor": x_target, "placed": []} for _ in range(n_rows)]
 
     # sort vehicles by weight descending
     sorted_gols = sorted(gol_list, key=lambda g: -KENDARAAN[g]["berat"])
 
-    # assign each vehicle to the row with smallest mass (to spread vertically)
+    # place one by one
     for gol in sorted_gols:
-        # pick row index with minimal total mass
-        row_idx = min(range(n_rows), key=lambda i: rows[i]["mass"])
-        rows[row_idx]["placed"].append(gol)
-        rows[row_idx]["mass"] += KENDARAAN[gol]["berat"]
+        best_choice = None
+        best_score = float("inf")
+        best_tmp = None
 
-    # compute row y positions so rows are centered vertically
-    total_rows_height = n_rows * row_height
-    start_y = max(0.0, (lebar_kapal - total_rows_height) / 2.0)  # bottom y of first row
-    row_ys = [start_y + i * row_height for i in range(n_rows)]
-
-    placements = []  # list of (gol, x, y)
-
-    # within each row, place vehicles around x_target alternating sides
-    for i, row in enumerate(rows):
-        y = row_ys[i]
-        # start cursors at x_target
-        left_cursor = x_target
-        right_cursor = x_target
-        toggle = 0
-        for gol in row["placed"]:
+        # try every row and both sides
+        for ri in range(n_rows):
             pjg, lbr = KENDARAAN[gol]["dim"]
-            # alternate: first place at center-right, then center-left, etc. 
-            # But to avoid overlap, place left by subtracting pjg
-            if toggle % 2 == 0:
-                # place to the right
-                x = right_cursor
-                right_cursor = right_cursor + pjg
+            # compute candidate x for right placement
+            right_x = row_state[ri]["right_cursor"]
+            left_x = row_state[ri]["left_cursor"] - pjg
+
+            # two candidate placements: right and left
+            candidates = [("right", right_x), ("left", left_x)]
+            for side, cand_x in candidates:
+                cand_y = row_ys[ri]
+                # create temp placements including this candidate + existing placements
+                tmp = placements.copy()
+                tmp.append((gol, float(cand_x), float(cand_y)))
+                # also include already placed items from row_state (they are in placements)
+                # compute CM
+                _, xcm_tmp, ycm_tmp = compute_cm(tmp)
+                # score = euclidean distance to target
+                score = ((xcm_tmp - x_target)**2 + (ycm_tmp - y_target)**2)**0.5
+                # but penalize if candidate would start beyond left bound much (< -eps) or right bound (> panjang)
+                if cand_x < -1e-6 or (cand_x + pjg) > panjang_kapal + 1e-6:
+                    score += 1e6  # huge penalty for out-of-bounds
+                # choose minimal score
+                if score < best_score:
+                    best_score = score
+                    best_choice = (ri, side, cand_x, row_ys[ri])
+                    best_tmp = tmp
+
+        # if a feasible best_choice found, commit it
+        if best_choice is not None:
+            ri, side, x_chosen, y_chosen = best_choice
+            placements.append((gol, float(x_chosen), float(y_chosen)))
+            row_state[ri]["placed"].append(gol)
+            if side == "right":
+                row_state[ri]["right_cursor"] = x_chosen + KENDARAAN[gol]["dim"][0]
             else:
-                # place to the left
-                x = left_cursor - pjg
-                left_cursor = x
-            toggle += 1
-            placements.append((gol, float(x), float(y)))
-        # store cursors (not used further)
-
-    # after placements compute bounding box and shift to fit inside ship
-    xs = [x for (_, x, _) in placements] + [x + KENDARAAN[gol]["dim"][0] for (gol, x, _) in placements]
-    if xs:
-        min_x = min(xs)
-        max_x = max(xs)
-    else:
-        min_x, max_x = 0.0, 0.0
-
-    shift = 0.0
-    if min_x < 0.0:
-        shift = -min_x
-    elif max_x > panjang_kapal:
-        shift = -(max_x - panjang_kapal)
-
-    if shift != 0.0:
-        placements = [(gol, x + shift, y) for (gol, x, y) in placements]
-
-    # if after shift anything still outside bounds, fallback greedy packing (left-to-right)
-    xs2 = [x for (_, x, _) in placements] + [x + KENDARAAN[gol]["dim"][0] for (gol, x, _) in placements]
-    if xs2 and (min(xs2) < -1e-6 or max(xs2) > panjang_kapal + 1e-6):
-        # fallback: fill row by row left->right starting x=0
-        placements = []
-        for i, row in enumerate(rows):
-            y = row_ys[i]
-            x_cursor = 0.0
-            for gol in row["placed"]:
+                # left placed at x_chosen, so new left_cursor is x_chosen
+                row_state[ri]["left_cursor"] = x_chosen
+        else:
+            # fallback: append at x=0 of first row that has space
+            placed_flag = False
+            for ri in range(n_rows):
+                x_try = 0.0
                 pjg, lbr = KENDARAAN[gol]["dim"]
-                if x_cursor + pjg <= panjang_kapal + 1e-6:
-                    placements.append((gol, float(x_cursor), float(y)))
-                    x_cursor += pjg
-                else:
-                    # can't place more in this row
+                if x_try + pjg <= panjang_kapal + 1e-6:
+                    placements.append((gol, float(x_try), float(row_ys[ri])))
+                    row_state[ri]["placed"].append(gol)
+                    row_state[ri]["right_cursor"] = x_try + pjg
+                    placed_flag = True
                     break
+            if not placed_flag:
+                # can't place, skip this vehicle
+                continue
 
-    # final clamp to valid range (just in case)
+    # after all placements, try to shift whole layout to fit within ship
+    if placements:
+        min_x = min(x for (_, x, _) in placements)
+        max_x = max(x + KENDARAAN[gol]["dim"][0] for (gol, x, _) in placements)
+        shift = 0.0
+        if min_x < 0.0:
+            shift = -min_x
+        elif max_x > panjang_kapal:
+            shift = -(max_x - panjang_kapal)
+        if shift != 0.0:
+            placements = [(gol, float(x + shift), float(y)) for gol, x, y in placements]
+
+    # clamp and final cleanup (ensure no negative coords and within bounds)
     final = []
     for gol, x, y in placements:
         pjg, lbr = KENDARAAN[gol]["dim"]
@@ -146,27 +169,22 @@ def arrange_to_balance(gol_list, panjang_kapal, lebar_kapal, x_target):
     return final
 
 # ======= Arrange vehicles and compute metrics =======
-placements = arrange_to_balance(st.session_state.kendaraan, panjang_kapal, lebar_kapal, titik_seimbang_vertikal)
+placements = arrange_balance_xy(st.session_state.kendaraan, panjang_kapal, lebar_kapal,
+                                titik_seimbang_vertikal, titik_seimbang_horizontal)
 
 # compute stats
 luas_terpakai = sum(KENDARAAN[gol]["dim"][0] * KENDARAAN[gol]["dim"][1] for gol, _, _ in placements)
 luas_kapal = panjang_kapal * lebar_kapal
 sisa_luas = luas_kapal - luas_terpakai
-total_berat = sum(KENDARAAN[gol]["berat"] for gol, _, _ in placements)
-
-if total_berat > 0:
-    x_cm = sum((x + KENDARAAN[gol]["dim"][0] / 2.0) * KENDARAAN[gol]["berat"] for gol, x, y in placements) / total_berat
-    y_cm = sum((y + KENDARAAN[gol]["dim"][1] / 2.0) * KENDARAAN[gol]["berat"] for gol, x, y in placements) / total_berat
-else:
-    x_cm, y_cm = 0.0, 0.0
-
+total_berat, x_cm, y_cm = compute_cm(placements)
 selisih_vertikal = x_cm - titik_seimbang_vertikal
 selisih_horizontal = y_cm - titik_seimbang_horizontal
+dist_to_target = ((selisih_vertikal**2 + selisih_horizontal**2)**0.5) if total_berat > 0 else 0.0
 
 # ======= UI output =======
-st.title("Simulasi Muat Kapal — Penataan untuk Menjaga Titik Berat")
+st.title("Simulasi Muat Kapal — Penataan untuk Keseimbangan XY")
 
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns([1.0, 1.0])
 with col1:
     st.subheader("Ringkasan Muatan")
     st.write(f"- Panjang kapal: **{panjang_kapal:.2f} m**")
@@ -181,6 +199,7 @@ with col1:
     st.write(f"- Titik berat muatan (x,y): **({x_cm:.2f} m, {y_cm:.2f} m)**")
     st.write(f"- Selisih vertikal: **{selisih_vertikal:.2f} m**")
     st.write(f"- Selisih horizontal: **{selisih_horizontal:.2f} m**")
+    st.write(f"- Jarak pusat massa → target: **{dist_to_target:.3f} m**")
 
 with col2:
     st.subheader("Daftar Kendaraan & Posisi")
@@ -200,7 +219,7 @@ fig, ax = plt.subplots(figsize=(10, 5))
 ax.set_xlim(0, panjang_kapal)
 ax.set_ylim(0, lebar_kapal)
 ax.set_aspect('equal')
-ax.set_title("Visualisasi Muat Kapal (Penataan untuk Keseimbangan)")
+ax.set_title("Visualisasi Muat Kapal (Penataan XY)")
 
 # kapal outline
 kapal_outline = Rectangle((0, 0), panjang_kapal, lebar_kapal, linewidth=1.5, edgecolor='black', facecolor='none')
@@ -219,9 +238,9 @@ for gol, x, y in placements:
         ax.plot(cx, cy, 'ko', markersize=3)
 
 # titik berat muatan dan garis seimbang
-ax.plot(x_cm, y_cm, 'rx', markersize=10, label="Titik Berat Muatan")
+if total_berat > 0:
+    ax.plot(x_cm, y_cm, 'rx', markersize=10, label="Titik Berat Muatan")
 ax.axvline(titik_seimbang_vertikal, color='green', linestyle='--', label="Titik Seimbang Vertikal")
 ax.axhline(titik_seimbang_horizontal, color='orange', linestyle='--', label="Titik Seimbang Horizontal")
 ax.legend()
-
 st.pyplot(fig)
