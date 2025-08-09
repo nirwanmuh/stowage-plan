@@ -20,10 +20,10 @@ KENDARAAN = {
 if "kendaraan" not in st.session_state:
     st.session_state.kendaraan = []
 
-# Input ukuran kapal
+# Input ukuran kapal (FLOAT)
 st.sidebar.header("Konfigurasi Kapal")
-panjang_kapal = st.sidebar.number_input("Panjang Kapal (m)", min_value=10, value=50.0, step=0.1)
-lebar_kapal = st.sidebar.number_input("Lebar Kapal (m)", min_value=5, value=15.0, step=0.1)
+panjang_kapal = st.sidebar.number_input("Panjang Kapal (m)", min_value=10.0, value=50.0, step=0.1)
+lebar_kapal = st.sidebar.number_input("Lebar Kapal (m)", min_value=5.0, value=15.0, step=0.1)
 
 # Input kendaraan
 st.sidebar.header("Tambah Kendaraan")
@@ -31,10 +31,10 @@ golongan = st.sidebar.selectbox("Pilih Golongan", list(KENDARAAN.keys()))
 if st.sidebar.button("Tambah Kendaraan"):
     st.session_state.kendaraan.append(golongan)
 
-# Fungsi untuk mencari kombinasi optimal
+# Fungsi untuk mencari kombinasi optimal (brute force sederhana)
 def cari_kombinasi_optimal(kendaraan_list):
     best_combo = []
-    max_luas = 0
+    max_luas = 0.0
 
     for perm in itertools.permutations(kendaraan_list):
         posisi_x = 0.0
