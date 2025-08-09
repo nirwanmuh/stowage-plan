@@ -199,15 +199,12 @@ fig, ax = plt.subplots(figsize=(10, 5))
 ax.set_xlim(0, panjang_kapal)
 ax.set_ylim(0, lebar_kapal)
 ax.set_aspect('equal')
-ax.set_title("Stowage Plan")
+ax.set_title("Visualisasi Muat Kapal (Tanpa Menumpuk)")
 
 # Outline kapal
 kapal_outline = Rectangle((0, 0), panjang_kapal, lebar_kapal,
                           linewidth=1.5, edgecolor='black', facecolor='none')
 ax.add_patch(kapal_outline)
-
-# List handles untuk legend
-legend_handles = []
 
 # Gambar kendaraan
 for gol, x, y in placements:
@@ -220,23 +217,22 @@ for gol, x, y in placements:
     ax.text(x + pjg / 2.0, y + lbr / 2.0, f"{gol}\n{berat}t",
             ha='center', va='center', fontsize=8, color='black')
 
-# Tambah titik berat
+# Titik berat
 if total_berat > 0:
-    p1, = ax.plot(x_cm, y_cm, 'rx', markersize=10, label="Titik Berat Muatan")
-    legend_handles.append(p1)
+    ax.plot(x_cm, y_cm, 'rx', markersize=10, label="Titik Berat Muatan")
 
 # Garis seimbang
-vline = ax.axvline(titik_seimbang_vertikal, color='green', linestyle='--', label="Titik Seimbang Vertikal")
-hline = ax.axhline(titik_seimbang_horizontal, color='orange', linestyle='--', label="Titik Seimbang Horizontal")
+ax.axvline(titik_seimbang_vertikal, color='green', linestyle='--', label="Titik Seimbang Vertikal")
+ax.axhline(titik_seimbang_horizontal, color='orange', linestyle='--', label="Titik Seimbang Horizontal")
 
-# Buat legend unik (golongan + garis + titik)
+# Legend di bawah grafik
 handles, labels = ax.get_legend_handles_labels()
 by_label = dict(zip(labels, handles))  # Hilangkan duplikat
 ax.legend(by_label.values(), by_label.keys(),
-          loc='center left', bbox_to_anchor=(1, 0.5))
+          loc='upper center', bbox_to_anchor=(0.5, -0.1),
+          ncol=4)
 
 st.pyplot(fig)
-
 
 # ======= Ringkasan & Daftar =======
 col1, col2 = st.columns([1.0, 1.0])
