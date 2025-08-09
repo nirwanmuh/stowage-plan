@@ -15,6 +15,14 @@ KENDARAAN = {
     "IX": {"dim": (21.0, 3.0), "berat": 30.0},
 }
 
+WARNA_GOLONGAN = {
+    "IV": "skyblue",
+    "V": "lightgreen",
+    "VI": "khaki",
+    "VII": "salmon",
+    "VIII": "plum",
+    "IX": "lightcoral"
+}
 # ======= Session state =======
 if "kendaraan" not in st.session_state:
     st.session_state.kendaraan = []  # list of golongan strings
@@ -199,7 +207,8 @@ ax.add_patch(kapal_outline)
 for gol, x, y in placements:
     pjg, lbr = KENDARAAN[gol]["dim"]
     berat = KENDARAAN[gol]["berat"]
-    rect = Rectangle((x, y), pjg, lbr, linewidth=1.2, edgecolor='blue', facecolor='skyblue', alpha=0.6)
+    warna = WARNA_GOLONGAN.get(gol, "gray")
+    rect = Rectangle((x, y), pjg, lbr, linewidth=1.2, edgecolor='black', facecolor=warna, alpha=0.6)
     ax.add_patch(rect)
     ax.text(x + pjg / 2.0, y + lbr / 2.0, f"{gol}\n{berat}t", ha='center', va='center', fontsize=8, color='red')
     corners = [(x, y), (x + pjg, y), (x, y + lbr), (x + pjg, y + lbr)]
