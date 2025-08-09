@@ -88,9 +88,11 @@ def validate_placements(placements, panjang, lebar, expected_count):
     return True, None
 
 def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
+    STEP = 0.5  # langkah pencarian posisi (meter)
     placements = []
     if not gol_list:
         return placements
+
     min_row_height = min(KENDARAAN[g]["dim"][1] for g in KENDARAAN)
     n_rows = max(1, int(lebar_kapal // min_row_height))
     row_height = min_row_height
@@ -98,49 +100,51 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
     start_y = max(0.0, (lebar_kapal - total_rows_height) / 2.0)
     row_ys = [start_y + i * row_height for i in range(n_rows)]
     row_state = [{"left_cursor": x_target, "right_cursor": x_target, "placed": []} for _ in range(n_rows)]
+
     sorted_gols = sorted(gol_list, key=lambda g: -KENDARAAN[g]["berat"])
 
     for gol in sorted_gols:
         best_choice = None
         best_score = float("inf")
+        pjg, lbr = KENDARAAN[gol]["dim"]
+
         for ri in range(n_rows):
-            pjg, lbr = KENDARAAN[gol]["dim"]
-            right_x = row_state[ri]["right_cursor"]
-            left_x = row_state[ri]["left_cursor"] - pjg
-            candidates = [("right", right_x), ("left", left_x)]
-            for side, cand_x in candidates:
+            # Cek ke kanan
+            pos = row_state[ri]["right_cursor"]
+            while pos + pjg <= panjang_kapal + 1e-6:
                 cand_y = row_ys[ri]
                 tmp = placements.copy()
-                tmp.append((gol, float(cand_x), float(cand_y)))
+                tmp.append((gol, float(pos), float(cand_y)))
                 _, xcm_tmp, ycm_tmp = compute_cm(tmp)
                 score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
-                if cand_x < -1e-6 or (cand_x + pjg) > panjang_kapal + 1e-6:
-                    score += 1e6
-                if score < best_score:
+                if score < best_score and not has_overlap(tmp):
                     best_score = score
-                    best_choice = (ri, side, cand_x, cand_y)
+                    best_choice = (ri, "right", pos, cand_y)
+                pos += STEP
+
+            # Cek ke kiri
+            pos = row_state[ri]["left_cursor"] - pjg
+            while pos >= 0.0 - 1e-6:
+                cand_y = row_ys[ri]
+                tmp = placements.copy()
+                tmp.append((gol, float(pos), float(cand_y)))
+                _, xcm_tmp, ycm_tmp = compute_cm(tmp)
+                score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
+                if score < best_score and not has_overlap(tmp):
+                    best_score = score
+                    best_choice = (ri, "left", pos, cand_y)
+                pos -= STEP
+
         if best_choice is not None:
             ri, side, x_chosen, y_chosen = best_choice
             placements.append((gol, float(x_chosen), float(y_chosen)))
             row_state[ri]["placed"].append(gol)
             if side == "right":
-                row_state[ri]["right_cursor"] = x_chosen + KENDARAAN[gol]["dim"][0]
+                row_state[ri]["right_cursor"] = x_chosen + pjg
             else:
                 row_state[ri]["left_cursor"] = x_chosen
-        else:
-            placed_flag = False
-            for ri in range(n_rows):
-                x_try = 0.0
-                pjg, lbr = KENDARAAN[gol]["dim"]
-                if x_try + pjg <= panjang_kapal + 1e-6:
-                    placements.append((gol, float(x_try), float(row_ys[ri])))
-                    row_state[ri]["placed"].append(gol)
-                    row_state[ri]["right_cursor"] = x_try + pjg
-                    placed_flag = True
-                    break
-            if not placed_flag:
-                continue
 
+    # Koreksi posisi kalau keluar batas
     if placements:
         min_x = min(x for (_, x, _) in placements)
         max_x = max(x + KENDARAAN[gol]["dim"][0] for (gol, x, _) in placements)
