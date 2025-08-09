@@ -210,6 +210,12 @@ kapal_outline = Rectangle((0, 0), panjang_kapal, lebar_kapal,
                           linewidth=1.5, edgecolor='black', facecolor='none')
 ax.add_patch(kapal_outline)
 
+# Label orientasi kapal
+ax.text(0, -0.8, "Belakang", ha='left', va='center', fontsize=10, fontweight='bold')
+ax.text(panjang_kapal, -0.8, "Depan", ha='right', va='center', fontsize=10, fontweight='bold')
+ax.text(-1, 0, "Kiri", ha='center', va='bottom', rotation=90, fontsize=10, fontweight='bold')
+ax.text(-1, lebar_kapal, "Kanan", ha='center', va='top', rotation=90, fontsize=10, fontweight='bold')
+
 # Gambar kendaraan
 for gol, x, y in placements:
     pjg, lbr = KENDARAAN[gol]["dim"]
