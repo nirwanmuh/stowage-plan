@@ -1,13 +1,11 @@
 import streamlit as st
-import numpy as np
 import matplotlib.pyplot as plt
-import copy
-from itertools import permutations
-from matplotlib.patches import Rectangle
+import numpy as np
+import itertools
 
 st.set_page_config(page_title="Simulasi Muat Kapal", layout="wide")
 
-# Definisi ukuran kendaraan per golongan
+# Data ukuran kendaraan (panjang, lebar) meter
 KENDARAAN = {
     "IV": (5, 3),
     "V": (7, 3),
@@ -17,295 +15,86 @@ KENDARAAN = {
     "IX": (21, 3),
 }
 
-BERAT = {
-    "IV": 1,
-    "V": 8,
-    "VI": 12,
-    "VII": 15,
-    "VIII": 18,
-    "IX": 30
-}
-WARNA = {
-    "IV": "lightblue",
-    "V": "lightgreen",
-    "VI": "orange",
-    "VII": "violet",
-    "VIII": "salmon",
-    "IX": "khaki",
-}
-
-# Inisialisasi state
-if "kapal" not in st.session_state:
-    st.session_state.kapal = None
-if "grid" not in st.session_state:
-    st.session_state.grid = None    
+# Session state untuk menyimpan kendaraan
 if "kendaraan" not in st.session_state:
     st.session_state.kendaraan = []
-if "kendaraan_list" not in st.session_state:
-    st.session_state.kendaraan_list = []
 
-# Fungsi: mencari tempat kosong
-def cari_lokasi(grid, p, l, berat, tx, ty):
-    min_score = float('inf')
-    best_pos = (None, None)
+# Input ukuran kapal
+st.sidebar.header("Konfigurasi Kapal")
+panjang_kapal = st.sidebar.number_input("Panjang Kapal (m)", min_value=10, value=50)
+lebar_kapal = st.sidebar.number_input("Lebar Kapal (m)", min_value=5, value=15)
 
-    for i in range(grid.shape[0] - l + 1):
-        for j in range(grid.shape[1] - p + 1):
-            if np.all(grid[i:i + l, j:j + p] == 0):
-                cx = j + p / 2
-                cy = i + l / 2
-                dx = abs(cx - tx)
-                dy = abs(cy - ty)
-                score = berat * (dx**2 + dy**2)
-                if score < min_score:
-                    min_score = score
-                    best_pos = (i, j)
-    return best_pos
+# Input kendaraan
+st.sidebar.header("Tambah Kendaraan")
+golongan = st.sidebar.selectbox("Pilih Golongan", list(KENDARAAN.keys()))
+if st.sidebar.button("Tambah Kendaraan"):
+    st.session_state.kendaraan.append(golongan)
 
-#susun ulang kendaraan
-def susun_ulang_kendaraan():
-    grid = np.zeros_like(st.session_state.grid, dtype=object)
-    kapal = st.session_state.kapal
-    tx = kapal["titik_seimbang_h"]
-    ty = kapal["titik_seimbang_v"]
+# Fungsi untuk mencari kombinasi optimal (brute force sederhana)
+def cari_kombinasi_optimal(kendaraan_list):
+    # Semua kemungkinan urutan
+    best_combo = []
+    max_luas = 0
 
-    kendaraan_baru = []
+    for perm in itertools.permutations(kendaraan_list):
+        posisi_x = 0
+        posisi_y = 0
+        baris_tertinggi = 0
+        combo = []
+        total_luas = 0
 
-    # Urutkan dulu agar penyusunan lebih stabil (opsional)
-    kendaraan_diurutkan = sorted(
-        st.session_state.kendaraan, key=lambda x: -x["berat"]
-    )
+        for gol in perm:
+            pjg, lbr = KENDARAAN[gol]
 
-    for k in kendaraan_diurutkan:
-        p, l = k["size"]
-        gol = k["gol"]
-        berat = k["berat"]
+            if posisi_x + pjg <= panjang_kapal and posisi_y + lbr <= lebar_kapal:
+                combo.append((gol, posisi_x, posisi_y))
+                total_luas += pjg * lbr
+                posisi_x += pjg
+                baris_tertinggi = max(baris_tertinggi, lbr)
+            else:
+                posisi_x = 0
+                posisi_y += baris_tertinggi
+                baris_tertinggi = 0
+                if posisi_y + lbr <= lebar_kapal:
+                    combo.append((gol, posisi_x, posisi_y))
+                    total_luas += pjg * lbr
+                    posisi_x += pjg
+                    baris_tertinggi = max(baris_tertinggi, lbr)
 
-        i, j = cari_lokasi(grid, p, l, berat, tx, ty)
-        if i is not None:
-            for dx in range(l):
-                for dy in range(p):
-                    grid[i + dx, j + dy] = gol
-            kendaraan_baru.append({
-                "gol": gol,
-                "pos": (i, j),
-                "size": (p, l),
-                "berat": berat
-            })
+        if total_luas > max_luas:
+            max_luas = total_luas
+            best_combo = combo
 
-    st.session_state.grid = grid
-    st.session_state.kendaraan = kendaraan_baru
+    return best_combo, max_luas
 
-# Sidebar: konfigurasi kapal
-with st.sidebar:
-    st.header("Konfigurasi Kapal")
-    panjang_kapal = st.number_input("Panjang Kapal (meter)", min_value=1, value=30)
-    lebar_kapal = st.number_input("Lebar Kapal (meter)", min_value=1, value=12)
-    titik_seimbang = st.number_input(
-        "Titik Seimbang Horizontal (meter)",
-        min_value=0,
-        max_value=panjang_kapal,
-        value=panjang_kapal // 2
-    ) 
-    if st.button("🔄 Buat Ulang Kapal"):
-        st.session_state.kapal = {
-            "panjang": panjang_kapal,
-            "lebar": lebar_kapal,
-            "titik_seimbang_h": titik_seimbang,
-            "titik_seimbang_v": lebar_kapal / 2  # dihitung otomatis
-        }
-        st.session_state.grid = np.zeros((lebar_kapal, panjang_kapal), dtype=object)
-        st.session_state.kendaraan = []
+# Hitung kombinasi optimal
+combo_optimal, luas_terpakai = cari_kombinasi_optimal(st.session_state.kendaraan)
+luas_kapal = panjang_kapal * lebar_kapal
+sisa_luas = luas_kapal - luas_terpakai
 
-# Fungsi: tambahkan kendaraan
-def tambah_kendaraan(golongan, berat_manual=None):
-    kendaraan_baru = {
-        "gol": golongan,
-        "size": KENDARAAN[golongan],
-        "berat": berat_manual if berat_manual is not None else BERAT[golongan]
-    }
+# Tampilkan hasil
+st.write(f"**Total Luas Kapal:** {luas_kapal} m²")
+st.write(f"**Luas Terpakai:** {luas_terpakai} m²")
+st.write(f"**Sisa Luas:** {sisa_luas} m²")
 
-    semua_kendaraan = st.session_state.kendaraan + [kendaraan_baru]
+# Visualisasi titik
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.set_xlim(0, panjang_kapal)
+ax.set_ylim(0, lebar_kapal)
+ax.set_aspect('equal')
+ax.set_title("Visualisasi Muat Kapal (Titik-Titik)")
 
-    kapal = st.session_state.kapal
-    tx = kapal["titik_seimbang_h"]
-    ty = kapal["titik_seimbang_v"]
+# Gambar titik dan outline kendaraan
+for gol, x, y in combo_optimal:
+    pjg, lbr = KENDARAAN[gol]
+    # titik-titik kendaraan
+    xx, yy = np.meshgrid(np.linspace(x, x+pjg, int(pjg*2)), 
+                         np.linspace(y, y+lbr, int(lbr*2)))
+    ax.scatter(xx, yy, s=5)
+    ax.text(x + pjg/2, y + lbr/2, gol, color="red", ha="center", va="center")
 
-    hasil_terbaik = None
-    kendaraan_terbaik = None
-    sisa_terbanyak = -1
-    keseimbangan_terbaik = float('inf')
+# Outline kapal
+ax.plot([0, panjang_kapal, panjang_kapal, 0, 0],
+        [0, 0, lebar_kapal, lebar_kapal, 0], 'k-')
 
-    for urutan in permutations(semua_kendaraan):
-        grid = np.zeros((kapal["lebar"], kapal["panjang"]), dtype=object)
-        temp_kendaraan = []
-        gagal = False
-
-        for k in urutan:
-            gol = k["gol"]
-            berat = k["berat"]
-            ukuran_asli = k["size"]
-            ditempatkan = False
-
-            for size in [ukuran_asli, ukuran_asli[::-1]]:
-                p, l = size
-                i, j = cari_lokasi(grid, p, l, berat, tx, ty)
-                if i is not None:
-                    for dx in range(l):
-                        for dy in range(p):
-                            grid[i + dx, j + dy] = gol
-                    temp_kendaraan.append({
-                        "gol": gol,
-                        "pos": (i, j),
-                        "size": (p, l),
-                        "berat": berat
-                    })
-                    ditempatkan = True
-                    break
-
-            if not ditempatkan:
-                gagal = True
-                break
-
-        if not gagal:
-            sisa = np.sum(grid == 0)
-            total_mx, total_my = 0, 0
-            for k in temp_kendaraan:
-                i, j = k["pos"]
-                p, l = k["size"]
-                berat = k["berat"]
-                cx = j + p / 2
-                cy = i + l / 2
-                total_mx += berat * (cx - tx)
-                total_my += berat * (cy - ty)
-
-            total_momen = abs(total_mx) + abs(total_my)
-
-            if hasil_terbaik is None or sisa > sisa_terbanyak or (
-                sisa == sisa_terbanyak and total_momen < keseimbangan_terbaik):
-                hasil_terbaik = copy.deepcopy(grid)
-                kendaraan_terbaik = copy.deepcopy(temp_kendaraan)
-                sisa_terbanyak = sisa
-                keseimbangan_terbaik = total_momen
-
-    if hasil_terbaik is not None:
-        st.session_state.grid = hasil_terbaik
-        st.session_state.kendaraan = kendaraan_terbaik
-        st.success("✅ Kendaraan berhasil dimuat dengan penataan ulang.")
-    else:
-        st.error("❌ Kendaraan tidak bisa dimuat, meskipun dengan penataan ulang.")
-
-# Sidebar: tambah kendaraan
-with st.sidebar:
-    st.header("Tambah Kendaraan")
-    golongan = st.selectbox("Golongan", list(KENDARAAN.keys()))
-    tambah = st.button("➕ Tambahkan ke Kapal")
-
-    if tambah:
-        tambah_kendaraan(golongan)
-
-
-# Fungsi: tampilkan grid
-def tampilkan_grid(grid):
-    rows, cols = grid.shape
-    fig, ax = plt.subplots(figsize=(cols / 2, rows / 2 + 1))
-    ax.set_xlim(0, cols)
-    ax.set_ylim(0, rows)
-    ax.set_xticks(np.arange(0, cols + 1, 1))
-    ax.set_yticks(np.arange(0, rows + 1, 1))
-    ax.grid(True)
-
-    # Gambar kendaraan sebagai satu kotak besar per kendaraan
-    for kendaraan in st.session_state.kendaraan:
-        gol = kendaraan['gol']
-        i, j = kendaraan['pos']
-        p, l = kendaraan['size']
-        # Rectangle dari pojok kiri bawah, jadi ubah baris ke koordinat matplotlib
-        y = rows - i - l
-        rect = Rectangle(
-            (j, y), p, l,
-            facecolor=WARNA.get(gol, "gray"),
-            edgecolor='black',
-            linewidth=2
-        )
-        ax.add_patch(rect)
-        ax.text(j + p/2, y + l/2, gol, ha="center", va="center", fontsize=10, weight="bold")
-
-    # Garis vertikal titik seimbang horizontal
-    if st.session_state.kapal and "titik_seimbang_h" in st.session_state.kapal:
-        x_seimbang = st.session_state.kapal["titik_seimbang_h"]
-        ax.axvline(x=x_seimbang, color="red", linestyle="--", linewidth=1.5)
-        ax.text(x_seimbang, rows + 0.3, "Titik Seimbang (Depan-Belakang)", color="red", fontsize=8, ha="center")
-
-    # Garis horizontal titik seimbang vertikal
-    if "titik_seimbang_v" in st.session_state.kapal:
-        y_seimbang = st.session_state.kapal["titik_seimbang_v"]
-        ax.axhline(y=rows - y_seimbang, color="red", linestyle="--", linewidth=1.5)
-        ax.text(cols + 0.2, rows - y_seimbang, "Titik Seimbang (Kiri-Kanan)", color="red", fontsize=8, va="center", rotation=90)
-
-    # Label depan dan belakang
-    ax.text(0, -0.8, "⬅️ Depan", ha="left", va="center", fontsize=10, weight="bold")
-    ax.text(cols, -0.8, "Belakang ➡️", ha="right", va="center", fontsize=10, weight="bold")
-
-    ax.set_aspect('equal')
-    st.pyplot(fig)
-
-# Fungsi: hitung sisa ruang dan kemungkinan kendaraan
-def hitung_sisa_dan_kemungkinan(grid):
-    sisa_kosong = np.sum(grid == 0)
-    luas_tersisa = sisa_kosong * 1  # 1m x 1m
-    kemungkinan = {}
-    for gol, (p, l) in KENDARAAN.items():
-        luas_kendaraan = p * l
-        muat = luas_tersisa // luas_kendaraan
-        kemungkinan[gol] = int(muat)
-    return luas_tersisa, kemungkinan
-
-# Hitung momen total saat ini
-def hitung_total_momen():
-    kapal = st.session_state.kapal
-    titik_seimbang_x = kapal["titik_seimbang_h"]
-    titik_seimbang_y = kapal["titik_seimbang_v"]
-    total_momen_x = 0
-    total_momen_y = 0
-
-    for k in st.session_state.kendaraan:
-        i, j = k["pos"]
-        p, l = k["size"]
-        berat = k["berat"]
-        cx = j + p / 2
-        cy = i + l / 2
-        total_momen_x += berat * (cx - titik_seimbang_x)
-        total_momen_y += berat * (cy - titik_seimbang_y)
-
-    return total_momen_x, total_momen_y
-
-# Tampilan utama
-st.title("🚢 Simulasi Kapasitas Muat Kapal")
-if st.session_state.kapal:
-    st.subheader("Visualisasi Muatan Kapal")
-    tampilkan_grid(st.session_state.grid)
-
-    st.subheader("Sisa Kapasitas & Kemungkinan Muat")
-    sisa, kemungkinan = hitung_sisa_dan_kemungkinan(st.session_state.grid)
-    st.write(f"**Sisa luas ruang kosong:** {sisa} m²")
-    st.table([{"Golongan": gol, "Masih Bisa Muat": jumlah} for gol, jumlah in kemungkinan.items()])
-
-    st.subheader("Daftar Kendaraan Saat Ini")
-    if st.session_state.kendaraan:
-        for idx, k in enumerate(st.session_state.kendaraan, 1):
-            st.write(f"{idx}. Golongan {k['gol']} di posisi {k['pos']} ukuran {k['size']}")
-    else:
-        st.info("Belum ada kendaraan di kapal.")
-
-    total_mx, total_my = hitung_total_momen()
-    st.subheader("🔧 Total Momen Saat Ini")
-    st.write(f"Momen Horizontal (Depan–Belakang): **{total_mx:.2f}**")
-    st.write(f"Momen Vertikal (Kiri–Kanan): **{total_my:.2f}**")
-    
-    if abs(total_mx) < 1 and abs(total_my) < 1:
-        st.success("✅ Kapal dalam keadaan seimbang.")
-    else:
-        st.warning("⚠️ Kapal belum seimbang.")
-else:
-    st.info("Silakan buat kapal terlebih dahulu melalui sidebar.")
+st.pyplot(fig)
