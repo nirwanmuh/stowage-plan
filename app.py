@@ -109,36 +109,43 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
         pjg, lbr = KENDARAAN[gol]["dim"]
 
         for ri in range(n_rows):
-            # Cek ke kanan
+            # Cek ke kanan (pakai titik tengah kendaraan)
             center_pos = row_state[ri]["right_cursor"] + pjg / 2.0
             while center_pos + pjg / 2.0 <= panjang_kapal + 1e-6:
-                cand_y_center = row_ys[ri] + lbr / 2.0
-                pojok_x = center_pos - pjg / 2.0
-                pojok_y = cand_y_center - lbr / 2.0
-                tmp = placements.copy()
-                tmp.append((gol, float(pojok_x), float(pojok_y)))
-                _, xcm_tmp, ycm_tmp = compute_cm(tmp)
-                score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
-                if score < best_score and not has_overlap(tmp):
-                    best_score = score
-                    best_choice = (ri, "right", pos, cand_y)
-                pos += STEP
-
-            # Cek ke kiri
-            center_pos = row_state[ri]["left_cursor"] - (pjg / 2.0)
-            while center_pos - pjg / 2.0 >= 0.0 - 1e-6:
-                center_y = row_ys[ri] + (lbr / 2.0)
+                center_y = row_ys[ri] + lbr / 2.0
                 pojok_x = center_pos - pjg / 2.0
                 pojok_y = center_y - lbr / 2.0
             
                 tmp = placements.copy()
                 tmp.append((gol, float(pojok_x), float(pojok_y)))
+            
                 _, xcm_tmp, ycm_tmp = compute_cm(tmp)
                 score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
                 if score < best_score and not has_overlap(tmp):
                     best_score = score
-                    best_choice = (ri, "left", pos, cand_y)
-                pos -= STEP
+                    best_choice = (ri, "right", pojok_x, pojok_y)
+            
+                center_pos += STEP
+
+            # Cek ke kiri
+            # Cek ke kiri (pakai titik tengah kendaraan)
+            center_pos = row_state[ri]["left_cursor"] - pjg / 2.0
+            while center_pos - pjg / 2.0 >= 0.0 - 1e-6:
+                center_y = row_ys[ri] + lbr / 2.0
+                pojok_x = center_pos - pjg / 2.0
+                pojok_y = center_y - lbr / 2.0
+            
+                tmp = placements.copy()
+                tmp.append((gol, float(pojok_x), float(pojok_y)))
+            
+                _, xcm_tmp, ycm_tmp = compute_cm(tmp)
+                score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
+                if score < best_score and not has_overlap(tmp):
+                    best_score = score
+                    best_choice = (ri, "left", pojok_x, pojok_y)
+            
+                center_pos -= STEP
+
 
         if best_choice is not None:
             ri, side, x_chosen, y_chosen = best_choice
