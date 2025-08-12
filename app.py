@@ -125,11 +125,14 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
                 pos += STEP
 
             # Cek ke kiri
-            pos = row_state[ri]["left_cursor"] - pjg
-            while pos >= 0.0 - 1e-6:
-                cand_y = row_ys[ri]
+            center_pos = row_state[ri]["left_cursor"] - (pjg / 2.0)
+            while center_pos - pjg / 2.0 >= 0.0 - 1e-6:
+                center_y = row_ys[ri] + (lbr / 2.0)
+                pojok_x = center_pos - pjg / 2.0
+                pojok_y = center_y - lbr / 2.0
+            
                 tmp = placements.copy()
-                tmp.append((gol, float(pos), float(cand_y)))
+                tmp.append((gol, float(pojok_x), float(pojok_y)))
                 _, xcm_tmp, ycm_tmp = compute_cm(tmp)
                 score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
                 if score < best_score and not has_overlap(tmp):
