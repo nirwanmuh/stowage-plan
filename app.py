@@ -232,12 +232,16 @@ if st.sidebar.button("Tambah Kendaraan"):
 
     # Susun ulang semuanya dari nol
     candidate_placements = arrange_balance_xy(candidate_list, panjang_kapal, lebar_kapal,
-                                              titik_seimbang_vertikal, titik_seimbang_horizontal)
+                                          titik_seimbang_vertikal, titik_seimbang_horizontal)
 
-    # Optimasi tambahan (biar bisa geser ke konfigurasi lebih baik)
-    candidate_placements = optimize_positions(candidate_placements, panjang_kapal, lebar_kapal,
-                                              titik_seimbang_vertikal, titik_seimbang_horizontal,
-                                              max_iter=1000, step=0.5)
+    ok, reason = validate_placements(candidate_placements, panjang_kapal, lebar_kapal, len(candidate_list))
+    
+    # kalau gagal → coba optimasi penuh
+    if not ok:
+        candidate_placements = optimize_positions(candidate_list, panjang_kapal, lebar_kapal,
+                                                  titik_seimbang_vertikal, titik_seimbang_horizontal,
+                                                  max_iter=5000, step=0.5)
+        ok, reason = validate_placements(candidate_placements, panjang_kapal, lebar_kapal, len(candidate_list))
 
     # Validasi hasil
     ok, reason = validate_placements(candidate_placements, panjang_kapal, lebar_kapal, len(candidate_list))
