@@ -225,6 +225,17 @@ def optimize_positions(placements, panjang_kapal, lebar_kapal, x_target, y_targe
     
     return best
 
+def repack_with_shuffle(gol_list, n_try=20):
+    for _ in range(n_try):
+        random.shuffle(gol_list)
+        placements = arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal,
+                                        titik_seimbang_vertikal, titik_seimbang_horizontal)
+        ok, _ = validate_placements(placements, panjang_kapal, lebar_kapal, len(gol_list))
+        if ok:
+            return placements
+    return []
+
+
 # ======= Add vehicle handler =======
 if st.sidebar.button("Tambah Kendaraan"):
     # Ambil semua kendaraan lama + yang baru
@@ -264,9 +275,12 @@ placements = arrange_balance_xy(st.session_state.kendaraan, panjang_kapal, lebar
                                 titik_seimbang_vertikal, titik_seimbang_horizontal)
 
 # optimasi tambahan
-placements = optimize_positions(placements, panjang_kapal, lebar_kapal,
-                                titik_seimbang_vertikal, titik_seimbang_horizontal,
-                                max_iter=1000, step=0.5)
+placements = optimize_positions(
+    candidate_placements, panjang_kapal, lebar_kapal,
+    titik_seimbang_vertikal, titik_seimbang_horizontal,
+    max_iter=10000, step=2.0
+)
+
 
 
 # compute stats
