@@ -102,7 +102,7 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
     row_ys = [start_y + i * row_height for i in range(n_rows)]
     row_state = [{"left_cursor": x_target, "right_cursor": x_target, "placed": []} for _ in range(n_rows)]
 
-    sorted_gols = sorted(gol_list, key=lambda g: -KENDARAAN[g]["berat"])
+    sorted_gols = sorted(gol_list, key=lambda g: -(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1]))
 
     for gol in sorted_gols:
         best_choice = None
