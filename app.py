@@ -276,7 +276,7 @@ placements = arrange_balance_xy(st.session_state.kendaraan, panjang_kapal, lebar
 
 # optimasi tambahan
 placements = optimize_positions(
-    candidate_placements, panjang_kapal, lebar_kapal,
+    placements, panjang_kapal, lebar_kapal,
     titik_seimbang_vertikal, titik_seimbang_horizontal,
     max_iter=10000, step=2.0
 )
