@@ -47,58 +47,6 @@ titik_seimbang_horizontal = lebar_kapal / 2.0  # otomatis
 st.sidebar.header("Tambah Kendaraan")
 pilih_gol = st.sidebar.selectbox("Pilih Golongan", list(KENDARAAN.keys()))
 
-def optimize_positions(placements, panjang_kapal, lebar_kapal, x_target, y_target, 
-                       max_iter=500, step=0.5, w_x=1.0, w_y=2.0):
-    """Optimasi posisi kendaraan dengan simulated annealing, 
-       utamakan keseimbangan horizontal, dan berat condong ke belakang."""
-    if not placements:
-        return placements
-    
-    def objective(placements):
-        total, xcm, ycm = compute_cm(placements)
-        if total == 0:
-            return float("inf")
-        # penalti horizontal (harus seimbang)
-        horiz_penalty = (ycm - y_target) ** 2
-        # penalti vertikal hanya kalau terlalu ke depan
-        vert_penalty = max(0, xcm - x_target) ** 2
-        return w_x * horiz_penalty + w_y * vert_penalty
-    
-    best = placements.copy()
-    best_score = objective(best)
-    
-    current = best.copy()
-    current_score = best_score
-    
-    T = 1.0
-    cooling = 0.995
-    
-    for _ in range(max_iter):
-        idx = random.randrange(len(current))
-        gol, x, y = current[idx]
-        pjg, lbr = KENDARAAN[gol]["dim"]
-        
-        new_x = min(max(0.0, x + random.uniform(-step, step)), panjang_kapal - pjg)
-        new_y = min(max(0.0, y + random.uniform(-step, step)), lebar_kapal - lbr)
-        
-        candidate = current.copy()
-        candidate[idx] = (gol, new_x, new_y)
-        
-        if has_overlap(candidate):
-            continue
-        
-        score = objective(candidate)
-        
-        if score < current_score or random.random() < math.exp((current_score - score) / max(T,1e-6)):
-            current = candidate
-            current_score = score
-            if score < best_score:
-                best = candidate
-                best_score = score
-        
-        T *= cooling
-    
-    return best
 # ======= Helper functions =======
 def compute_cm(placements):
     total_mass = 0.0
@@ -230,6 +178,53 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
 
     return final
 
+def optimize_positions(placements, panjang_kapal, lebar_kapal, x_target, y_target, max_iter=500, step=0.5):
+    """Optimasi posisi kendaraan dengan simulated annealing sederhana."""
+    if not placements:
+        return placements
+    
+    best = placements.copy()
+    best_mass, best_xcm, best_ycm = compute_cm(best)
+    best_score = (best_xcm - x_target)**2 + (best_ycm - y_target)**2
+    
+    current = best.copy()
+    current_score = best_score
+    
+    T = 1.0  # temperatur awal
+    cooling = 0.995  # faktor pendinginan
+    
+    for _ in range(max_iter):
+        # pilih kendaraan acak
+        idx = random.randrange(len(current))
+        gol, x, y = current[idx]
+        pjg, lbr = KENDARAAN[gol]["dim"]
+        
+        # geser posisi acak kecil
+        new_x = min(max(0.0, x + random.uniform(-step, step)), panjang_kapal - pjg)
+        new_y = min(max(0.0, y + random.uniform(-step, step)), lebar_kapal - lbr)
+        
+        candidate = current.copy()
+        candidate[idx] = (gol, new_x, new_y)
+        
+        if has_overlap(candidate):
+            continue  # skip kalau tabrakan
+        
+        _, xcm, ycm = compute_cm(candidate)
+        score = (xcm - x_target)**2 + (ycm - y_target)**2
+        
+        # kriteria penerimaan (SA)
+        if score < current_score or random.random() < math.exp((current_score - score) / max(T,1e-6)):
+            current = candidate
+            current_score = score
+            
+            if score < best_score:
+                best = candidate
+                best_score = score
+        
+        T *= cooling  # turunkan temperatur
+    
+    return best
+
 # ======= Add vehicle handler =======
 if st.sidebar.button("Tambah Kendaraan"):
     # Ambil semua kendaraan lama + yang baru
@@ -254,6 +249,7 @@ if st.sidebar.button("Tambah Kendaraan"):
         st.error(f"Tidak bisa menambahkan golongan {pilih_gol}")
         st.write(f"*Alasan: {reason}*")
 
+
 if st.sidebar.button("Reset Kendaraan"):
     st.session_state.kendaraan = []
     st.success("Daftar kendaraan dikosongkan")
@@ -266,6 +262,7 @@ placements = arrange_balance_xy(st.session_state.kendaraan, panjang_kapal, lebar
 placements = optimize_positions(placements, panjang_kapal, lebar_kapal,
                                 titik_seimbang_vertikal, titik_seimbang_horizontal,
                                 max_iter=1000, step=0.5)
+
 
 # compute stats
 luas_terpakai = sum(KENDARAAN[gol]["dim"][0] * KENDARAAN[gol]["dim"][1] for gol, _, _ in placements)
