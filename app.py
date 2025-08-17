@@ -232,15 +232,26 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target)
 
 # ======= Add vehicle handler =======
 if st.sidebar.button("Tambah Kendaraan"):
+    # Ambil semua kendaraan lama + yang baru
     candidate_list = st.session_state.kendaraan + [pilih_gol]
+
+    # Susun ulang semuanya dari nol
     candidate_placements = arrange_balance_xy(candidate_list, panjang_kapal, lebar_kapal,
                                               titik_seimbang_vertikal, titik_seimbang_horizontal)
+
+    # Optimasi tambahan (biar bisa geser ke konfigurasi lebih baik)
+    candidate_placements = optimize_positions(candidate_placements, panjang_kapal, lebar_kapal,
+                                              titik_seimbang_vertikal, titik_seimbang_horizontal,
+                                              max_iter=1000, step=0.5)
+
+    # Validasi hasil
     ok, reason = validate_placements(candidate_placements, panjang_kapal, lebar_kapal, len(candidate_list))
     if ok:
-        st.session_state.kendaraan.append(pilih_gol)
+        # Simpan daftar kendaraan (bukan posisi, supaya selalu bisa re-arrange total)
+        st.session_state.kendaraan = candidate_list
         st.success(f"Berhasil menambahkan golongan {pilih_gol}")
     else:
-        st.error(f"tidak bisa menambahkan golongan {pilih_gol} lagi")
+        st.error(f"Tidak bisa menambahkan golongan {pilih_gol}")
         st.write(f"*Alasan: {reason}*")
 
 if st.sidebar.button("Reset Kendaraan"):
