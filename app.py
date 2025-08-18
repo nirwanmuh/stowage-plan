@@ -84,7 +84,9 @@ def update_vehicle_placement(ship_dims, ship_balance_point, new_vehicle_type, cu
             current_vehicles.append({'tipe': new_vehicle_type, 'rect': best_pos})
             unplaced = []
         else:
+            # Tidak ada ruang: kendaraan dianggap tidak bisa ditempatkan
             unplaced = [new_vehicle_type]
+
     else:
         # --- Reset semua kendaraan dan susun ulang semua kendaraan termasuk yang baru ---
         all_vehicles = current_vehicles.copy() if isinstance(current_vehicles, list) else []
@@ -245,10 +247,17 @@ with st.sidebar:
     
     def add_vehicle():
         new_vehicle = st.session_state.selected_vehicle
-        st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = update_vehicle_placement(
+        placed, unplaced = update_vehicle_placement(
             ship_dims, ship_balance_point, new_vehicle, st.session_state.placed_vehicles
         )
-        st.session_state.vehicles_input.append(new_vehicle)
+    
+        st.session_state.placed_vehicles = placed
+        st.session_state.unplaced_vehicles = unplaced
+    
+        if not unplaced:
+            # hanya simpan di daftar input kalau memang berhasil ditempatkan
+            st.session_state.vehicles_input.append(new_vehicle)
+
 
 
     def reset_vehicles():
