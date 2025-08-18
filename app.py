@@ -96,11 +96,11 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target,
     if not gol_list:
         return placements
 
-    # total area semua kendaraan (dipakai untuk cek sisa luas awal)
+    # total area semua kendaraan
     luas_terpakai = sum(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1] for g in gol_list)
     sisa_luas = luas_kapal - luas_terpakai
 
-    # urutkan dari yang terbesar biar penempelan lebih rapat
+    # urutkan dari besar ke kecil supaya lebih rapat
     sorted_gols = sorted(gol_list, key=lambda g: -(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1]))
 
     for gol in sorted_gols:
@@ -114,36 +114,30 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target,
             # kendaraan pertama → letakkan mendekati target
             candidate_positions.append((max(0, x_target - pjg/2), max(0, y_target - lbr/2)))
         else:
-            # aturan 1: sisa luas > 50% → tempel ke kendaraan lain
             if sisa_luas > 0.5 * luas_kapal:
+                # aturan: sisa luas > 50% → coba tempel
                 for g2, x2, y2 in placements:
                     pjg2, lbr2 = KENDARAAN[g2]["dim"]
-                    # nempel kanan sejajar bawah
+
+                    # kanan
                     candidate_positions.append((x2 + pjg2, y2))
-                    # nempel kanan sejajar atas
                     candidate_positions.append((x2 + pjg2, y2 + lbr2 - lbr))
-                    
-                    # nempel kiri sejajar bawah
+                    # kiri
                     candidate_positions.append((x2 - pjg, y2))
-                    # nempel kiri sejajar atas
                     candidate_positions.append((x2 - pjg, y2 + lbr2 - lbr))
-                    
-                    # nempel depan sejajar kiri
+                    # depan
                     candidate_positions.append((x2, y2 + lbr2))
-                    # nempel depan sejajar kanan
                     candidate_positions.append((x2 + pjg2 - pjg, y2 + lbr2))
-                    
-                    # nempel belakang sejajar kiri
+                    # belakang
                     candidate_positions.append((x2, y2 - lbr))
-                    # nempel belakang sejajar kanan
                     candidate_positions.append((x2 + pjg2 - pjg, y2 - lbr))
             else:
-                # aturan 2: sisa luas < 50% → mulai dari belakang (x=0), scan y
-                step_y = max(1, int(lbr))  # jaga jangan 0
+                # aturan: sisa luas < 50% → mulai dari belakang, scan ke samping
+                step_y = max(1, int(lbr))
                 for y_try in range(0, max(1, int(lebar_kapal - lbr)) + 1, step_y):
                     candidate_positions.append((0, y_try))
 
-        # fallback kalau tidak ada kandidat
+        # === fallback kalau hasil di atas kosong / tidak ada yang valid ===
         if not candidate_positions:
             step_x = max(1, int(pjg))
             step_y = max(1, int(lbr))
@@ -151,19 +145,19 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target,
                 for y_try in range(0, int(lebar_kapal - lbr) + 1, step_y):
                     candidate_positions.append((x_try, y_try))
 
-        # evaluasi kandidat
+        # evaluasi semua kandidat
         for x_try, y_try in candidate_positions:
             tmp = placements.copy()
             tmp.append((gol, x_try, y_try))
             valid, _ = validate_placements(tmp, panjang_kapal, lebar_kapal, len(tmp))
             if not valid:
                 continue
+
             _, xcm, ycm = compute_cm(tmp)
             score = math.hypot(xcm - x_target, ycm - y_target)
             if score < best_score:
                 best_score = score
                 best_choice = (gol, x_try, y_try)
-
 
         if best_choice:
             placements.append(best_choice)
