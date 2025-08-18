@@ -87,69 +87,80 @@ def validate_placements(placements, panjang, lebar, expected_count):
         return False, "terdapat tumpang tindih kendaraan"
     return True, None
 
-def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
+def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target, luas_kapal=None):
+    # Hitung luas_kapal otomatis jika tidak dikirim oleh pemanggil
+    if luas_kapal is None:
+        luas_kapal = panjang_kapal * lebar_kapal
+
     placements = []
     if not gol_list:
         return placements
 
-    # Urutkan kendaraan dari paling berat ke ringan
-    sorted_gols = sorted(gol_list, key=lambda g: -KENDARAAN[g]["berat"])
+    # total area semua kendaraan (dipakai untuk cek sisa luas awal)
+    luas_terpakai = sum(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1] for g in gol_list)
+    sisa_luas = luas_kapal - luas_terpakai
+
+    # urutkan dari yang terbesar biar penempelan lebih rapat
+    sorted_gols = sorted(gol_list, key=lambda g: -(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1]))
 
     for gol in sorted_gols:
         pjg, lbr = KENDARAAN[gol]["dim"]
         best_choice = None
         best_score = float("inf")
 
-        # Kandidat posisi deterministik: grid dari tengah ke luar
-        x_candidates = []
-        y_candidates = []
+        candidate_positions = []
 
-        # posisi tengah ke depan/belakang
-        step_x = pjg
-        cx = max(0.0, min(x_target - pjg/2, panjang_kapal - pjg))
-        while cx >= 0:
-            x_candidates.append(cx)
-            cx -= step_x
-        cx = max(0.0, min(x_target - pjg/2, panjang_kapal - pjg))
-        while cx + pjg <= panjang_kapal:
-            x_candidates.append(cx)
-            cx += step_x
+        if not placements:
+            # kendaraan pertama → letakkan mendekati target
+            candidate_positions.append((max(0, x_target - pjg/2), max(0, y_target - lbr/2)))
+        else:
+            # aturan 1: sisa luas > 50% → tempel ke kendaraan lain
+            if sisa_luas > 0.5 * luas_kapal:
+                for g2, x2, y2 in placements:
+                    pjg2, lbr2 = KENDARAAN[g2]["dim"]
+                    # nempel kanan sejajar bawah
+                    candidate_positions.append((x2 + pjg2, y2))
+                    # nempel kanan sejajar atas
+                    candidate_positions.append((x2 + pjg2, y2 + lbr2 - lbr))
+                    
+                    # nempel kiri sejajar bawah
+                    candidate_positions.append((x2 - pjg, y2))
+                    # nempel kiri sejajar atas
+                    candidate_positions.append((x2 - pjg, y2 + lbr2 - lbr))
+                    
+                    # nempel depan sejajar kiri
+                    candidate_positions.append((x2, y2 + lbr2))
+                    # nempel depan sejajar kanan
+                    candidate_positions.append((x2 + pjg2 - pjg, y2 + lbr2))
+                    
+                    # nempel belakang sejajar kiri
+                    candidate_positions.append((x2, y2 - lbr))
+                    # nempel belakang sejajar kanan
+                    candidate_positions.append((x2 + pjg2 - pjg, y2 - lbr))
+            else:
+                # aturan 2: sisa luas < 50% → mulai dari belakang (x=0), scan y
+                step_y = max(1, int(lbr))  # jaga jangan 0
+                for y_try in range(0, max(1, int(lebar_kapal - lbr)) + 1, step_y):
+                    candidate_positions.append((0, y_try))
 
-        # posisi tengah ke kiri/kanan
-        step_y = lbr
-        cy = max(0.0, min(y_target - lbr/2, lebar_kapal - lbr))
-        while cy >= 0:
-            y_candidates.append(cy)
-            cy -= step_y
-        cy = max(0.0, min(y_target - lbr/2, lebar_kapal - lbr))
-        while cy + lbr <= lebar_kapal:
-            y_candidates.append(cy)
-            cy += step_y
-
-        # Coba semua kombinasi posisi kandidat
-        for x in x_candidates:
-            for y in y_candidates:
-                tmp = placements.copy()
-                tmp.append((gol, x, y))
-
-                # cek overlap
-                if has_overlap(tmp):
-                    continue
-                # cek dalam batas kapal
-                if x < -1e-6 or y < -1e-6 or (x + pjg) > panjang_kapal + 1e-6 or (y + lbr) > lebar_kapal + 1e-6:
-                    continue
-
-                _, xcm_tmp, ycm_tmp = compute_cm(tmp)
-                score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
-
-                if score < best_score:
-                    best_score = score
-                    best_choice = (x, y)
+        # evaluasi kandidat
+        for x_try, y_try in candidate_positions:
+            tmp = placements.copy()
+            tmp.append((gol, x_try, y_try))
+            valid, _ = validate_placements(tmp, panjang_kapal, lebar_kapal, len(tmp))
+            if not valid:
+                continue
+            _, xcm, ycm = compute_cm(tmp)
+            score = math.hypot(xcm - x_target, ycm - y_target)
+            if score < best_score:
+                best_score = score
+                best_choice = (gol, x_try, y_try)
 
         if best_choice:
-            placements.append((gol, best_choice[0], best_choice[1]))
+            placements.append(best_choice)
 
     return placements
+
 
 # ======= Add vehicle handler =======
 if st.sidebar.button("Tambah Kendaraan"):
