@@ -1,262 +1,247 @@
 import streamlit as st
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-import math
+import matplotlib.patches as patches
+import copy
 
-st.set_page_config(page_title="Stowage Plan", layout="wide")
-
-# ======= Konfigurasi kendaraan (dim dalam m, berat dalam ton) =======
-KENDARAAN = {
-    "IV": {"dim": (5.0, 3.0), "berat": 1.0},
-    "V": {"dim": (7.0, 3.0), "berat": 8.0},
-    "VI": {"dim": (10.0, 3.0), "berat": 12.0},
-    "VII": {"dim": (12.0, 3.0), "berat": 15.0},
-    "VIII": {"dim": (16.0, 3.0), "berat": 18.0},
-    "IX": {"dim": (21.0, 3.0), "berat": 30.0},
+# --- KONFIGURASI DATA KENDARAAN ---
+VEHICLE_DATA = {
+    "dimensi": {
+        "IV": (5, 3), "V": (7, 3), "VI": (10, 3),
+        "VII": (12, 3), "VIII": (16, 3), "IX": (21, 3),
+    },
+    "berat": {
+        "IV": 1, "V": 8, "VI": 12,
+        "VII": 15, "VIII": 18, "IX": 30,
+    },
+    "warna": {
+        "IV": "lightblue", "V": "lightgreen", "VI": "orange",
+        "VII": "violet", "VIII": "salmon", "IX": "khaki",
+    }
 }
 
-WARNA_GOLONGAN = {
-    "IV": "skyblue",
-    "V": "lightgreen",
-    "VI": "khaki",
-    "VII": "salmon",
-    "VIII": "plum",
-    "IX": "lightcoral"
-}
-# ======= Session state =======
-if "kendaraan" not in st.session_state:
-    st.session_state.kendaraan = []  # list of golongan strings
+# --- FUNGSI-FUNGSI INTI ---
 
-# ======= Sidebar input =======
-st.sidebar.header("Konfigurasi Kapal")
-panjang_kapal = st.sidebar.number_input("Panjang Kapal (m)", min_value=10.0, value=50.0, step=0.1, format="%.1f")
-lebar_kapal = st.sidebar.number_input("Lebar Kapal (m)", min_value=3.0, value=15.0, step=0.1, format="%.1f")
-
-st.sidebar.header("Titik Seimbang")
-titik_seimbang_vertikal = st.sidebar.number_input(
-    "Titik Seimbang Vertikal (m, dari buritan)",
-    min_value=0.0,
-    max_value=float(panjang_kapal),
-    value=float(panjang_kapal / 2.0),
-    step=0.1,
-    format="%.2f"
-)
-titik_seimbang_horizontal = lebar_kapal / 2.0  # otomatis
-
-st.sidebar.header("Tambah Kendaraan")
-pilih_gol = st.sidebar.selectbox("Pilih Golongan", list(KENDARAAN.keys()))
-
-# ======= Helper functions =======
-def compute_cm(placements):
-    total_mass = 0.0
-    mx = 0.0
-    my = 0.0
-    for gol, x, y in placements:
-        m = KENDARAAN[gol]["berat"]
-        pjg, lbr = KENDARAAN[gol]["dim"]
-        cx = x + pjg / 2.0
-        cy = y + lbr / 2.0
-        mx += cx * m
-        my += cy * m
-        total_mass += m
-    if total_mass > 0:
-        return total_mass, mx / total_mass, my / total_mass
-    else:
-        return 0.0, 0.0, 0.0
-
-def has_overlap(placements, eps=1e-9):
-    n = len(placements)
-    for i in range(n):
-        gol1, x1, y1 = placements[i]
-        w1, h1 = KENDARAAN[gol1]["dim"]
-        for j in range(i+1, n):
-            gol2, x2, y2 = placements[j]
-            w2, h2 = KENDARAAN[gol2]["dim"]
-            if not (x1 + w1 <= x2 + eps or x2 + w2 <= x1 + eps or y1 + h1 <= y2 + eps or y2 + h2 <= y1 + eps):
-                return True
+def check_overlap(new_vehicle_rect, placed_vehicles):
+    """Mengecek apakah kendaraan baru tumpang tindih dengan kendaraan yang sudah ditempatkan."""
+    for placed in placed_vehicles:
+        # Unpack rectangles: (x, y, width, height)
+        x1, y1, w1, h1 = new_vehicle_rect
+        x2, y2, w2, h2 = placed['rect']
+        
+        # Kondisi tidak tumpang tindih
+        if (x1 + w1 <= x2 or x2 + w2 <= x1 or
+            y1 + h1 <= y2 or y2 + h2 <= y1):
+            continue
+        else:
+            return True # Terjadi tumpang tindih
     return False
 
-def validate_placements(placements, panjang, lebar, expected_count):
-    if len(placements) != expected_count:
-        return False, "tidak semua kendaraan dapat ditempatkan"
-    for gol, x, y in placements:
-        pjg, lbr = KENDARAAN[gol]["dim"]
-        if x < -1e-6 or y < -1e-6 or (x + pjg) > panjang + 1e-6 or (y + lbr) > lebar + 1e-6:
-            return False, "beberapa kendaraan keluar batas kapal"
-    if has_overlap(placements):
-        return False, "terdapat tumpang tindih kendaraan"
-    return True, None
+def calculate_combined_cg(vehicles):
+    """Menghitung titik berat gabungan dari semua kendaraan yang dimuat."""
+    if not vehicles:
+        return 0, 0
 
-def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
-    placements = []
-    if not gol_list:
-        return placements
+    total_weight = 0
+    weighted_sum_x = 0
+    weighted_sum_y = 0
 
-    # Urutkan kendaraan dari paling berat ke ringan
-    sorted_gols = sorted(gol_list, key=lambda g: -KENDARAAN[g]["berat"])
+    for vehicle in vehicles:
+        berat = VEHICLE_DATA["berat"][vehicle['tipe']]
+        cx = vehicle['rect'][0] + vehicle['rect'][2] / 2
+        cy = vehicle['rect'][1] + vehicle['rect'][3] / 2
+        
+        total_weight += berat
+        weighted_sum_x += cx * berat
+        weighted_sum_y += cy * berat
 
-    for gol in sorted_gols:
-        pjg, lbr = KENDARAAN[gol]["dim"]
-        best_choice = None
-        best_score = float("inf")
+    if total_weight == 0:
+        return 0, 0
+        
+    cg_x = weighted_sum_x / total_weight
+    cg_y = weighted_sum_y / total_weight
+    
+    return cg_x, cg_y
 
-        # Kandidat posisi deterministik: grid dari tengah ke luar
-        x_candidates = []
-        y_candidates = []
+def find_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load):
+    """
+    Algoritma Greedy untuk menemukan penempatan kendaraan yang optimal.
+    Menempatkan kendaraan terbesar terlebih dahulu pada posisi yang meminimalkan
+    jarak titik berat muatan ke titik seimbang kapal.
+    """
+    ship_length, ship_width = ship_dims
+    placed_vehicles = []
+    unplaced_vehicles = []
 
-        # posisi tengah ke depan/belakang
-        step_x = pjg
-        cx = max(0.0, min(x_target - pjg/2, panjang_kapal - pjg))
-        while cx >= 0:
-            x_candidates.append(cx)
-            cx -= step_x
-        cx = max(0.0, min(x_target - pjg/2, panjang_kapal - pjg))
-        while cx + pjg <= panjang_kapal:
-            x_candidates.append(cx)
-            cx += step_x
+    # Urutkan kendaraan dari yang terbesar (berdasarkan luas) ke terkecil
+    sorted_vehicles = sorted(vehicles_to_load, key=lambda v: VEHICLE_DATA["dimensi"][v][0] * VEHICLE_DATA["dimensi"][v][1], reverse=True)
+    
+    # Resolusi grid untuk pencarian posisi (semakin kecil semakin presisi tapi lambat)
+    GRID_STEP = 0.5 
 
-        # posisi tengah ke kiri/kanan
-        step_y = lbr
-        cy = max(0.0, min(y_target - lbr/2, lebar_kapal - lbr))
-        while cy >= 0:
-            y_candidates.append(cy)
-            cy -= step_y
-        cy = max(0.0, min(y_target - lbr/2, lebar_kapal - lbr))
-        while cy + lbr <= lebar_kapal:
-            y_candidates.append(cy)
-            cy += step_y
+    for i, vehicle_type in enumerate(sorted_vehicles):
+        panjang_kendaraan, lebar_kendaraan = VEHICLE_DATA["dimensi"][vehicle_type]
+        best_position = None
+        min_distance = float('inf')
 
-        # Coba semua kombinasi posisi kandidat
-        for x in x_candidates:
-            for y in y_candidates:
-                tmp = placements.copy()
-                tmp.append((gol, x, y))
+        # Mencari posisi terbaik di seluruh area kapal
+        for x in np.arange(0, ship_length - panjang_kendaraan + GRID_STEP, GRID_STEP):
+            for y in np.arange(0, ship_width - lebar_kendaraan + GRID_STEP, GRID_STEP):
+                
+                new_vehicle_rect = (x, y, panjang_kendaraan, lebar_kendaraan)
+                
+                # 1. Cek apakah tumpang tindih
+                if not check_overlap(new_vehicle_rect, placed_vehicles):
+                    
+                    # 2. Hitung hipotesis titik berat gabungan jika kendaraan ini ditempatkan
+                    temp_placed = copy.deepcopy(placed_vehicles)
+                    temp_placed.append({'tipe': vehicle_type, 'rect': new_vehicle_rect})
+                    
+                    cg_x, cg_y = calculate_combined_cg(temp_placed)
+                    
+                    # 3. Hitung jarak ke titik seimbang kapal
+                    distance = np.sqrt((cg_x - ship_balance_point[0])**2 + (cg_y - ship_balance_point[1])**2)
+                    
+                    # 4. Simpan posisi jika ini yang terbaik sejauh ini
+                    if distance < min_distance:
+                        min_distance = distance
+                        best_position = new_vehicle_rect
 
-                # cek overlap
-                if has_overlap(tmp):
-                    continue
-                # cek dalam batas kapal
-                if x < -1e-6 or y < -1e-6 or (x + pjg) > panjang_kapal + 1e-6 or (y + lbr) > lebar_kapal + 1e-6:
-                    continue
+        if best_position:
+            placed_vehicles.append({'tipe': vehicle_type, 'rect': best_position, 'id': i})
+        else:
+            unplaced_vehicles.append(vehicle_type)
 
-                _, xcm_tmp, ycm_tmp = compute_cm(tmp)
-                score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
+    return placed_vehicles, unplaced_vehicles
 
-                if score < best_score:
-                    best_score = score
-                    best_choice = (x, y)
+def visualize_placement(ship_dims, ship_balance_point, placed_vehicles):
+    """Membuat visualisasi penempatan kendaraan di atas kapal."""
+    ship_length, ship_width = ship_dims
+    fig, ax = plt.subplots(figsize=(ship_length * 0.5, ship_width * 0.5))
 
-        if best_choice:
-            placements.append((gol, best_choice[0], best_choice[1]))
+    # Gambar dek kapal
+    ship_deck = patches.Rectangle((0, 0), ship_length, ship_width, linewidth=2, edgecolor='black', facecolor='lightgray')
+    ax.add_patch(ship_deck)
 
-    return placements
+    # Gambar kendaraan yang ditempatkan
+    for vehicle in placed_vehicles:
+        x, y, w, h = vehicle['rect']
+        color = VEHICLE_DATA["warna"][vehicle['tipe']]
+        rect = patches.Rectangle((x, y), w, h, linewidth=1.5, edgecolor='black', facecolor=color, alpha=0.9)
+        ax.add_patch(rect)
+        ax.text(x + w/2, y + h/2, vehicle['tipe'], ha='center', va='center', fontsize=8, weight='bold')
 
-# ======= Add vehicle handler =======
-if st.sidebar.button("Tambah Kendaraan"):
-    candidate_list = st.session_state.kendaraan + [pilih_gol]
-    candidate_placements = arrange_balance_xy(candidate_list, panjang_kapal, lebar_kapal,
-                                              titik_seimbang_vertikal, titik_seimbang_horizontal)
-    ok, reason = validate_placements(candidate_placements, panjang_kapal, lebar_kapal, len(candidate_list))
-    if ok:
-        st.session_state.kendaraan.append(pilih_gol)
-        st.success(f"Berhasil menambahkan golongan {pilih_gol}")
+    # Tandai titik seimbang kapal (target)
+    ax.plot(ship_balance_point[0], ship_balance_point[1], 'rX', markersize=12, label='Titik Seimbang Kapal', mew=2)
+    
+    # Hitung dan tandai titik berat muatan (hasil)
+    if placed_vehicles:
+        cg_x, cg_y = calculate_combined_cg(placed_vehicles)
+        ax.plot(cg_x, cg_y, 'bo', markersize=10, label='Titik Berat Muatan', alpha=0.8)
+
+    ax.set_xlim(0, ship_length)
+    ax.set_ylim(0, ship_width)
+    ax.set_aspect('equal', adjustable='box')
+    plt.xlabel("Panjang Kapal (meter)")
+    plt.ylabel("Lebar Kapal (meter)")
+    plt.title("Visualisasi Simulasi Muat Kapal")
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.6)
+    
+    return fig
+
+
+# --- UI STREAMLIT ---
+
+st.set_page_config(layout="wide")
+st.title("🚢 Aplikasi Simulasi Muat Kapal Optimal")
+
+# Inisialisasi session state
+if 'vehicles_to_load' not in st.session_state:
+    st.session_state.vehicles_to_load = []
+if 'simulation_result' not in st.session_state:
+    st.session_state.simulation_result = None
+
+# --- SIDEBAR UNTUK INPUT ---
+with st.sidebar:
+    st.header("1. Parameter Kapal")
+    ship_length = st.number_input("Masukkan Panjang Kapal (meter)", min_value=1.0, value=50.0, step=0.5, format="%.1f")
+    ship_width = st.number_input("Masukkan Lebar Kapal (meter)", min_value=1.0, value=15.0, step=0.5, format="%.1f")
+    
+    balance_point_x = st.number_input("Titik Seimbang Panjang (meter)", min_value=0.0, max_value=ship_length, value=ship_length/2, step=0.5, format="%.1f")
+    balance_point_y = ship_width / 2
+    
+    st.info(f"Titik Seimbang Kapal (P, L):\n({balance_point_x:.2f} m, {balance_point_y:.2f} m)")
+    
+    st.header("2. Tambah Kendaraan")
+    vehicle_options = list(VEHICLE_DATA["dimensi"].keys())
+    selected_vehicle = st.selectbox("Pilih Golongan Kendaraan", options=vehicle_options)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("➕ Tambah Kendaraan"):
+            st.session_state.vehicles_to_load.append(selected_vehicle)
+            st.session_state.simulation_result = None # Reset hasil simulasi jika ada perubahan
+    with col2:
+        if st.button("🗑️ Reset Daftar"):
+            st.session_state.vehicles_to_load = []
+            st.session_state.simulation_result = None
+            st.rerun()
+
+# --- AREA UTAMA ---
+col_main1, col_main2 = st.columns([1, 2])
+
+with col_main1:
+    st.header("Daftar Muatan")
+    if not st.session_state.vehicles_to_load:
+        st.info("Belum ada kendaraan yang ditambahkan.")
     else:
-        st.error(f"tidak bisa menambahkan golongan {pilih_gol} lagi")
-        st.write(f"*Alasan: {reason}*")
+        df_vehicles = pd.DataFrame(st.session_state.vehicles_to_load, columns=["Golongan"])
+        st.dataframe(df_vehicles, use_container_width=True)
+        
+        total_berat = sum(VEHICLE_DATA["berat"][v] for v in st.session_state.vehicles_to_load)
+        total_luas = sum(VEHICLE_DATA["dimensi"][v][0] * VEHICLE_DATA["dimensi"][v][1] for v in st.session_state.vehicles_to_load)
+        st.metric("Total Kendaraan", f"{len(st.session_state.vehicles_to_load)} unit")
+        st.metric("Estimasi Total Berat", f"{total_berat} Ton")
+        st.metric("Estimasi Total Luas", f"{total_luas} m²")
 
-if st.sidebar.button("Reset Kendaraan"):
-    st.session_state.kendaraan = []
-    st.success("Daftar kendaraan dikosongkan")
+    if st.session_state.vehicles_to_load:
+        if st.button("🚀 Jalankan Simulasi Penempatan", type="primary", use_container_width=True):
+            with st.spinner("Mencari kombinasi optimal... Ini mungkin butuh beberapa saat."):
+                ship_dims = (ship_length, ship_width)
+                ship_balance_point = (balance_point_x, balance_point_y)
+                placed, unplaced = find_optimal_placement(ship_dims, ship_balance_point, st.session_state.vehicles_to_load)
+                st.session_state.simulation_result = (placed, unplaced)
 
-# ======= Arrange current kendaraan =======
-placements = arrange_balance_xy(st.session_state.kendaraan, panjang_kapal, lebar_kapal,
-                                titik_seimbang_vertikal, titik_seimbang_horizontal)
+with col_main2:
+    st.header("Hasil Simulasi")
+    if st.session_state.simulation_result:
+        placed_vehicles, unplaced_vehicles = st.session_state.simulation_result
+        
+        # Tampilkan visualisasi
+        fig = visualize_placement((ship_length, ship_width), (balance_point_x, balance_point_y), placed_vehicles)
+        st.pyplot(fig)
+        
+        # Tampilkan metrik hasil
+        st.subheader("Ringkasan Hasil Optimal")
+        
+        luas_kapal = ship_length * ship_width
+        luas_terpakai = sum(v['rect'][2] * v['rect'][3] for v in placed_vehicles)
+        persentase_terpakai = (luas_terpakai / luas_kapal) * 100 if luas_kapal > 0 else 0
+        
+        cg_x, cg_y = calculate_combined_cg(placed_vehicles)
+        jarak_cg = np.sqrt((cg_x - balance_point_x)**2 + (cg_y - balance_point_y)**2)
 
-# compute stats
-luas_terpakai = sum(KENDARAAN[gol]["dim"][0] * KENDARAAN[gol]["dim"][1] for gol, _, _ in placements)
-luas_kapal = panjang_kapal * lebar_kapal
-sisa_luas = luas_kapal - luas_terpakai
-total_berat, x_cm, y_cm = compute_cm(placements)
-selisih_vertikal = x_cm - titik_seimbang_vertikal
-selisih_horizontal = y_cm - titik_seimbang_horizontal
-dist_to_target = math.hypot(selisih_vertikal, selisih_horizontal) if total_berat > 0 else 0.0
+        met_col1, met_col2, met_col3 = st.columns(3)
+        met_col1.metric("Kendaraan Ditempatkan", f"{len(placed_vehicles)} / {len(st.session_state.vehicles_to_load)}")
+        met_col2.metric("Penggunaan Area Dek", f"{persentase_terpakai:.2f} %")
+        met_col3.metric("Jarak ke Titik Seimbang", f"{jarak_cg:.2f} m")
 
-# ======= UI output =======
-st.title("Stowage Plan")
-
-# ======= Visualisasi =======
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.set_xlim(0, panjang_kapal)
-ax.set_ylim(0, lebar_kapal)
-ax.set_aspect('equal')
-ax.set_title("Visualisasi Stowage Plan")
-
-# Outline kapal
-kapal_outline = Rectangle((0, 0), panjang_kapal, lebar_kapal,
-                          linewidth=1.5, edgecolor='black', facecolor='none')
-ax.add_patch(kapal_outline)
-
-# Label orientasi kapal
-ax.text(0, lebar_kapal+1, "Belakang", ha='left', va='center', fontsize=10, fontweight='bold')
-ax.text(panjang_kapal, lebar_kapal+1, "Depan", ha='right', va='center', fontsize=10, fontweight='bold')
-ax.text(panjang_kapal+1, 0, "Kanan", ha='center', va='bottom', rotation=270, fontsize=10, fontweight='bold')
-ax.text(panjang_kapal+1, lebar_kapal, "Kiri", ha='center', va='top', rotation=270, fontsize=10, fontweight='bold')
-
-# Gambar kendaraan
-for gol, x, y in placements:
-    pjg, lbr = KENDARAAN[gol]["dim"]
-    berat = KENDARAAN[gol]["berat"]
-    warna = WARNA_GOLONGAN.get(gol, "gray")
-    rect = Rectangle((x, y), pjg, lbr, linewidth=1.2,
-                     edgecolor='black', facecolor=warna, alpha=0.6, label=f"Golongan {gol}")
-    ax.add_patch(rect)
-    ax.text(x + pjg / 2.0, y + lbr / 2.0, f"{gol}\n{berat}t",
-            ha='center', va='center', fontsize=8, color='black')
-
-# Titik berat
-if total_berat > 0:
-    ax.plot(x_cm, y_cm, 'rx', markersize=10, label="Titik Berat Muatan")
-
-# Garis seimbang
-ax.axvline(titik_seimbang_vertikal, color='green', linestyle='--', label="Titik Seimbang Vertikal")
-ax.axhline(titik_seimbang_horizontal, color='orange', linestyle='--', label="Titik Seimbang Horizontal")
-
-# Legend di bawah grafik
-handles, labels = ax.get_legend_handles_labels()
-by_label = dict(zip(labels, handles))  # Hilangkan duplikat
-ax.legend(by_label.values(), by_label.keys(),
-          loc='upper center', bbox_to_anchor=(0.5, -0.1),
-          ncol=4)
-
-st.pyplot(fig)
-
-# ======= Ringkasan & Daftar =======
-col1, col2 = st.columns([1.0, 1.0])
-with col1:
-    st.subheader("Ringkasan Muatan")
-    st.write(f"- Panjang kapal: **{panjang_kapal:.2f} m**")
-    st.write(f"- Lebar kapal: **{lebar_kapal:.2f} m**")
-    st.write(f"- Titik seimbang vertikal (target): **{titik_seimbang_vertikal:.2f} m**")
-    st.write(f"- Titik seimbang horizontal (target): **{titik_seimbang_horizontal:.2f} m**")
-    st.write(f"- Jumlah kendaraan: **{len(st.session_state.kendaraan)}**")
-    st.write(f"- Luas kapal: **{luas_kapal:.2f} m²**")
-    st.write(f"- Luas terpakai: **{luas_terpakai:.2f} m²**")
-    st.write(f"- Sisa luas: **{sisa_luas:.2f} m²**")
-    st.write(f"- Total berat muatan: **{total_berat:.2f} ton**")
-    st.write(f"- Titik berat muatan (x,y): **({x_cm:.2f} m, {y_cm:.2f} m)**")
-    st.write(f"- Selisih vertikal: **{selisih_vertikal:.2f} m**")
-    st.write(f"- Selisih horizontal: **{selisih_horizontal:.2f} m**")
-    st.write(f"- Jarak pusat massa → target: **{dist_to_target:.3f} m**")
-
-with col2:
-    st.subheader("Daftar Kendaraan & Posisi")
-    if placements:
-        table = []
-        for idx, (gol, x, y) in enumerate(placements, start=1):
-            pjg, lbr = KENDARAAN[gol]["dim"]
-            berat = KENDARAAN[gol]["berat"]
-            table.append({"#": idx, "Gol": gol, "x (m)": round(x, 2), "y (m)": round(y, 2),
-                          "p (m)": pjg, "l (m)": lbr, "berat (t)": berat})
-        st.table(table)
+        if unplaced_vehicles:
+            st.warning(f"Kendaraan berikut tidak dapat ditempatkan: {', '.join(unplaced_vehicles)}")
+        else:
+            st.success("Semua kendaraan berhasil ditempatkan!")
+            
     else:
-        st.write("Belum ada kendaraan.")
+        st.info("Klik 'Jalankan Simulasi Penempatan' untuk melihat hasilnya.")
