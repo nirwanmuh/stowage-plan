@@ -107,7 +107,7 @@ def arrange_balance_xy_optimal(kendaraan_list, panjang_kapal, lebar_kapal,
         if idx == 0:
             x0 = titik_seimbang_vertikal - w / 2
             y0 = titik_seimbang_horizontal - h / 2
-            placements.append((x0, y0, w, h, gol))
+            placements.append((gol, x_best, y_best))
             continue
     
         # Kandidat posisi "nempel" dari kendaraan yang sudah ada
