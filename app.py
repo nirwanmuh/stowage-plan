@@ -59,6 +59,43 @@ def calculate_combined_cg(vehicles):
         
     return weighted_sum_x / total_weight, weighted_sum_y / total_weight
 
+
+def update_vehicle_placement(ship_dims, ship_balance_point, new_vehicle_type, current_vehicles):
+    """
+    Menangani penempatan kendaraan baru berdasarkan sisa luas kapal:
+    - Jika sisa luas > 70%: kendaraan baru ditambahkan menggunakan metode 'tengah ke luar'.
+    - Jika sisa luas <= 70%: reset semua kendaraan dan susun ulang semua menggunakan metode eksisting.
+    """
+    ship_length, ship_width = ship_dims
+    total_ship_area = ship_length * ship_width
+
+    # Hitung luas kendaraan yang sudah ada
+    used_area = sum(VEHICLE_DATA["dimensi"][v]['dim'][0] * VEHICLE_DATA["dimensi"][v]['dim'][1] 
+                    if isinstance(v, str) else v['rect'][2]*v['rect'][3]
+                    for v in current_vehicles)
+    used_area = sum(v['rect'][2]*v['rect'][3] for v in current_vehicles if isinstance(v, dict))
+    free_area_ratio = 1 - used_area / total_ship_area
+
+    # -----------------------------------------
+    if free_area_ratio > 0.7:
+        # --- Metode baru: tempatkan kendaraan baru tanpa reset ---
+        best_pos = find_placement_for_single_vehicle(ship_dims, ship_balance_point, new_vehicle_type, current_vehicles)
+        if best_pos:
+            current_vehicles.append({'tipe': new_vehicle_type, 'rect': best_pos})
+            unplaced = []
+        else:
+            unplaced = [new_vehicle_type]
+    else:
+        # --- Reset semua kendaraan dan susun ulang semua kendaraan termasuk yang baru ---
+        all_vehicles = current_vehicles.copy() if isinstance(current_vehicles, list) else []
+        # Pastikan hanya menyimpan tipe kendaraan saja
+        all_vehicle_types = [v['tipe'] if isinstance(v, dict) else v for v in all_vehicles]
+        all_vehicle_types.append(new_vehicle_type)
+        current_vehicles, unplaced = find_initial_optimal_placement(ship_dims, ship_balance_point, all_vehicle_types)
+    
+    return current_vehicles, unplaced
+
+
 def find_placement_for_single_vehicle(ship_dims, ship_balance_point, vehicle_type_to_add, current_placed_vehicles):
     """
     Mencari posisi optimal untuk satu kendaraan baru ke dalam dek yang sudah berisi.
@@ -201,7 +238,12 @@ with st.sidebar:
     )
     
     def add_vehicle():
-        st.session_state.vehicles_input.append(st.session_state.selected_vehicle)
+        new_vehicle = st.session_state.selected_vehicle
+        st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = update_vehicle_placement(
+            ship_dims, ship_balance_point, new_vehicle, st.session_state.placed_vehicles
+        )
+        st.session_state.vehicles_input.append(new_vehicle)
+
 
     def reset_vehicles():
         st.session_state.vehicles_input = []
