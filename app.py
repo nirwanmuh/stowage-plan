@@ -100,47 +100,46 @@ def arrange_balance_xy_optimal(kendaraan_list, panjang_kapal, lebar_kapal,
         return False
 
     # Mulai dengan kendaraan pertama → taruh di tengah
-    for idx, kendaraan in enumerate(kendaraan_list):
-        w, h = kendaraan["dim"]
-        bw = kendaraan["berat"]
+for idx, gol in enumerate(kendaraan_list):
+    w, h = KENDARAAN[gol]["dim"]
+    bw = KENDARAAN[gol]["berat"]
 
-        if idx == 0:
-            x0 = titik_seimbang_vertikal - w / 2
-            y0 = titik_seimbang_horizontal - h / 2
-            placements.append((x0, y0, w, h, kendaraan))
+    if idx == 0:
+        x0 = titik_seimbang_vertikal - w / 2
+        y0 = titik_seimbang_horizontal - h / 2
+        placements.append((x0, y0, w, h, gol))
+        continue
+
+    # Kandidat posisi "nempel" dari kendaraan yang sudah ada
+    kandidat = []
+    for px, py, pw, ph, _ in placements:
+        kandidat.extend([
+            (px + pw, py),       # kanan
+            (px - w, py),        # kiri
+            (px, py + ph),       # depan
+            (px, py - h),        # belakang
+        ])
+
+    # Filter kandidat valid (tidak keluar batas & tidak overlap)
+    valid = []
+    for (x, y) in kandidat:
+        if x < 0 or y < 0 or x + w > panjang_kapal or y + h > lebar_kapal:
             continue
+        if is_overlap(x, y, w, h, placements):
+            continue
+        # Hitung jarak ke titik seimbang
+        cx, cy = x + w / 2, y + h / 2
+        jarak = math.sqrt((cx - titik_seimbang_vertikal) ** 2 +
+                          (cy - titik_seimbang_horizontal) ** 2)
+        valid.append((jarak, x, y))
 
-        # Kandidat posisi "nempel" dari kendaraan yang sudah ada
-        kandidat = []
-        for px, py, pw, ph, _ in placements:
-            kandidat.extend([
-                (px + pw, py),       # kanan
-                (px - w, py),        # kiri
-                (px, py + ph),       # depan
-                (px, py - h),        # belakang
-            ])
-
-        # Filter kandidat valid (tidak keluar batas & tidak overlap)
-        valid = []
-        for (x, y) in kandidat:
-            if x < 0 or y < 0 or x + w > panjang_kapal or y + h > lebar_kapal:
-                continue
-            if is_overlap(x, y, w, h, placements):
-                continue
-            # Hitung jarak ke titik seimbang
-            cx, cy = x + w / 2, y + h / 2
-            jarak = math.sqrt((cx - titik_seimbang_vertikal) ** 2 +
-                              (cy - titik_seimbang_horizontal) ** 2)
-            valid.append((jarak, x, y))
-
-        # Kalau ada posisi valid, pilih yang paling dekat dengan titik seimbang
-        if valid:
-            valid.sort(key=lambda k: k[0])
-            _, x_best, y_best = valid[0]
-            placements.append((x_best, y_best, w, h, kendaraan))
-        else:
-            # fallback → taruh di pojok (daripada hilang)
-            placements.append((0, 0, w, h, kendaraan))
+    if valid:
+        valid.sort(key=lambda k: k[0])
+        _, x_best, y_best = valid[0]
+        placements.append((x_best, y_best, w, h, gol))
+    else:
+        # fallback → taruh di pojok (0,0)
+        placements.append((0, 0, w, h, gol))
 
     return placements
 
