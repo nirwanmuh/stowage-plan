@@ -114,7 +114,7 @@ if 'vehicles_to_load' not in st.session_state:
 if 'simulation_result' not in st.session_state:
     st.session_state.simulation_result = ([], [])
 
-# --- SIDEBAR UNTUK INPUT ---
+# --- SIDEBAR UNTUK INPUT (BAGIAN YANG DIPERBAIKI) ---
 with st.sidebar:
     st.header("1. Parameter Kapal")
     ship_length = st.number_input("Masukkan Panjang Kapal (meter)", min_value=1.0, value=50.0, step=0.5, format="%.1f")
@@ -125,22 +125,27 @@ with st.sidebar:
     
     st.header("2. Tambah Kendaraan")
     vehicle_options = list(VEHICLE_DATA["dimensi"].keys())
-    selected_vehicle = st.selectbox("Pilih Golongan Kendaraan", options=vehicle_options)
     
-    # --- LOGIKA TOMBOL REALTIME ---
-    # Gunakan callback untuk memisahkan logika dari rendering
+    # PERBAIKAN: Berikan 'key' pada selectbox agar nilainya tersimpan di session_state
+    st.selectbox(
+        "Pilih Golongan Kendaraan", 
+        options=vehicle_options, 
+        key='selected_vehicle'
+    )
+    
+    # PERBAIKAN: Definisikan callback yang mengakses nilai dari session_state
     def add_vehicle():
+        # Fungsi ini sekarang mengakses nilai dari st.selectbox melalui 'key' nya
         st.session_state.vehicles_to_load.append(st.session_state.selected_vehicle)
 
     def reset_vehicles():
         st.session_state.vehicles_to_load = []
         
-    st.button("➕ Tambah Kendaraan", on_click=add_vehicle, key='add_button', kwargs={'vehicle': selected_vehicle})
+    # PERBAIKAN: Panggil callback tanpa argumen tambahan (kwargs)
+    st.button("➕ Tambah Kendaraan", on_click=add_vehicle)
     st.button("🗑️ Reset Daftar", on_click=reset_vehicles)
 
-# --- LOGIKA SIMULASI REALTIME ---
-# Jalankan simulasi jika daftar kendaraan berubah atau parameter kapal berubah
-# Kita gunakan hash dari tuple parameter untuk mendeteksi perubahan
+# --- LOGIKA SIMULASI REALTIME (Tidak ada perubahan di sini) ---
 current_params = (ship_length, ship_width, balance_point_x, tuple(sorted(st.session_state.vehicles_to_load)))
 if 'last_params' not in st.session_state or st.session_state.last_params != current_params:
     st.session_state.last_params = current_params
@@ -150,24 +155,21 @@ if 'last_params' not in st.session_state or st.session_state.last_params != curr
             ship_balance_point = (balance_point_x, balance_point_y)
             placed, unplaced = find_optimal_placement(ship_dims, ship_balance_point, st.session_state.vehicles_to_load)
             st.session_state.simulation_result = (placed, unplaced)
-    else: # Jika tidak ada kendaraan, reset hasil simulasi
+    else:
         st.session_state.simulation_result = ([], [])
 
-
-# --- AREA UTAMA DENGAN LAYOUT BARU ---
-col_main1, col_main2 = st.columns([2, 1]) # Kolom kiri lebih besar
+# --- AREA UTAMA DENGAN LAYOUT BARU (Tidak ada perubahan di sini) ---
+col_main1, col_main2 = st.columns([2, 1])
 
 with col_main1:
     st.header("Hasil Simulasi")
     placed_vehicles, unplaced_vehicles = st.session_state.simulation_result
     
-    # Tampilkan visualisasi jika ada kendaraan yang ditempatkan
     if placed_vehicles:
         fig = visualize_placement((ship_length, ship_width), (balance_point_x, balance_point_y), placed_vehicles)
         st.pyplot(fig)
     else:
         st.info("Tambahkan kendaraan dari sidebar untuk memulai simulasi.")
-        # Gambar kapal kosong sebagai placeholder
         fig, ax = plt.subplots(figsize=(ship_length * 0.1, ship_width * 0.1))
         ship_deck = patches.Rectangle((0, 0), ship_length, ship_width, linewidth=2, edgecolor='black', facecolor='lightgray')
         ax.add_patch(ship_deck)
