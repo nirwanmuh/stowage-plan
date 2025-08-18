@@ -65,34 +65,14 @@ def find_placement_for_single_vehicle(ship_dims, ship_balance_point, vehicle_typ
     Menggunakan logika yang sama dengan yang sebelumnya, tetapi hanya untuk satu kendaraan.
     """
     ship_length, ship_width = ship_dims
-    panjang_kendaraan, lebar_kendaraan = VEHICLE_DATA["dimensi"][vehicle_type_to_add]
-
-    # Hitung persentase pemakaian area dek kapal saat ini
-    luas_kapal = ship_length * ship_width
-    luas_terpakai = sum(v['rect'][2]*v['rect'][3] for v in current_placed_vehicles)
-    persentase_terpakai = (luas_terpakai / luas_kapal) * 100 if luas_kapal > 0 else 0
-
-    candidate_points = []
-
-    if persentase_terpakai < 50:
-    # Mode center fleksibel
-        center_x, center_y = ship_balance_point
-        panjang, lebar = VEHICLE_DATA["dimensi"][vehicle_type_to_add]
-        candidate_points = [
-            (center_x - panjang/2, center_y - lebar/2),  # center
-            (0, 0),  # sudut kiri-belakang
-            (ship_length - panjang, 0),  # sudut kanan-belakang
-            (0, ship_width - lebar),  # sudut kiri-depan
-            (ship_length - panjang, ship_width - lebar)  # sudut kanan-depan
-        ]
-    else:
+    
     # Hasilkan semua titik kandidat dari sudut kendaraan yang sudah ada.
-        candidate_points = [(0, 0)]
-        for pv in current_placed_vehicles:
-            vx, vy, vw, vh = pv['rect']
-            candidate_points.append((vx + vw, vy))
-            candidate_points.append((vx, vy + vh))
-        
+    candidate_points = [(0, 0)]
+    for pv in current_placed_vehicles:
+        vx, vy, vw, vh = pv['rect']
+        candidate_points.append((vx + vw, vy))
+        candidate_points.append((vx, vy + vh))
+    
     # Filter titik-titik kandidat untuk memastikan berada di dalam batas kapal
     unique_candidate_points = set()
     for p in candidate_points:
@@ -219,40 +199,10 @@ with st.sidebar:
         options=vehicle_options, 
         key='selected_vehicle'
     )
-
-
+    
     def add_vehicle():
-        new_vehicle = st.session_state.selected_vehicle
-        ship_dims = (ship_length, ship_width)
-        ship_balance = (balance_point_x, balance_point_y)
-    
-        # Tambahkan kendaraan baru ke daftar input dulu
-        st.session_state.vehicles_input.append(new_vehicle)
-    
-        # Hitung luas terpakai termasuk kendaraan baru
-        luas_kapal = ship_length * ship_width
-        luas_terpakai_sementara = sum(v['rect'][2]*v['rect'][3] for v in st.session_state.placed_vehicles)
-        panjang_baru, lebar_baru = VEHICLE_DATA["dimensi"][new_vehicle]
-        luas_terpakai_sementara += panjang_baru * lebar_baru
-        persentase_terpakai_sementara = (luas_terpakai_sementara / luas_kapal) * 100 if luas_kapal > 0 else 0
-    
-        # Jika persentase >=50% setelah kendaraan baru, reset semua dan susun ulang semua kendaraan
-        if persentase_terpakai_sementara >= 50:
-            st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = find_initial_optimal_placement(
-                ship_dims, ship_balance, st.session_state.vehicles_input
-            )
-        else:
-            # Mode center: tambah kendaraan baru saja
-            best_pos = find_placement_for_single_vehicle(
-                ship_dims, ship_balance, new_vehicle, st.session_state.placed_vehicles
-            )
-            if best_pos:
-                st.session_state.placed_vehicles.append({'tipe': new_vehicle, 'rect': best_pos})
-            else:
-                st.session_state.unplaced_vehicles.append(new_vehicle)
-    
-    
-    
+        st.session_state.vehicles_input.append(st.session_state.selected_vehicle)
+
     def reset_vehicles():
         st.session_state.vehicles_input = []
         st.session_state.placed_vehicles = []
