@@ -143,6 +143,14 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target,
                 for y_try in range(0, max(1, int(lebar_kapal - lbr)) + 1, step_y):
                     candidate_positions.append((0, y_try))
 
+        # fallback kalau tidak ada kandidat
+        if not candidate_positions:
+            step_x = max(1, int(pjg))
+            step_y = max(1, int(lbr))
+            for x_try in range(0, int(panjang_kapal - pjg) + 1, step_x):
+                for y_try in range(0, int(lebar_kapal - lbr) + 1, step_y):
+                    candidate_positions.append((x_try, y_try))
+
         # evaluasi kandidat
         for x_try, y_try in candidate_positions:
             tmp = placements.copy()
@@ -155,6 +163,7 @@ def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target,
             if score < best_score:
                 best_score = score
                 best_choice = (gol, x_try, y_try)
+
 
         if best_choice:
             placements.append(best_choice)
