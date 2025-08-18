@@ -88,11 +88,63 @@ def validate_placements(placements, panjang, lebar, expected_count):
         return False, "terdapat tumpang tindih kendaraan"
     return True, None
 
-def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
-    STEP = 0.1  # langkah pencarian posisi (meter)
+def arrange_balance_xy_optimal(gol_list, panjang_kapal, lebar_kapal, x_target, y_target, luas_kapal):
     placements = []
     if not gol_list:
         return placements
+
+    luas_terpakai = sum(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1] for g in gol_list)
+    sisa_luas = luas_kapal - luas_terpakai
+
+    # urutkan dari yang terbesar dulu biar lebih rapat
+    sorted_gols = sorted(gol_list, key=lambda g: -(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1]))
+
+    for gol in sorted_gols:
+        pjg, lbr = KENDARAAN[gol]["dim"]
+        best_choice = None
+        best_score = float("inf")
+
+        candidate_positions = []
+
+        if not placements:
+            # kendaraan pertama → letakkan di titik target
+            candidate_positions.append((max(0, x_target - pjg/2), max(0, y_target - lbr/2)))
+        else:
+            # aturan 1: sisa luas > 50% → tempel ke kendaraan lain
+            if sisa_luas > 0.5 * luas_kapal:
+                for g2, x2, y2 in placements:
+                    pjg2, lbr2 = KENDARAAN[g2]["dim"]
+                    # nempel kanan
+                    candidate_positions.append((x2+pjg2, y2))
+                    # nempel kiri
+                    candidate_positions.append((x2-pjg, y2))
+                    # nempel depan
+                    candidate_positions.append((x2, y2+lbr2))
+                    # nempel belakang
+                    candidate_positions.append((x2, y2-lbr))
+            else:
+                # aturan 2: sisa luas < 50% → mulai dari belakang
+                for y_try in range(0, int(lebar_kapal - lbr) + 1, int(lbr)):
+                    candidate_positions.append((0, y_try))
+
+        # evaluasi semua kandidat
+        for x_try, y_try in candidate_positions:
+            tmp = placements.copy()
+            tmp.append((gol, x_try, y_try))
+            valid, _ = validate_placements(tmp, panjang_kapal, lebar_kapal, len(tmp))
+            if not valid:
+                continue
+            _, xcm, ycm = compute_cm(tmp)
+            score = math.hypot(xcm - x_target, ycm - y_target)
+            if score < best_score:
+                best_score = score
+                best_choice = (gol, x_try, y_try)
+
+        if best_choice:
+            placements.append(best_choice)
+
+    return placements
+
 
     min_row_height = min(KENDARAAN[g]["dim"][1] for g in KENDARAAN)
     n_rows = max(1, int(lebar_kapal // min_row_height))
