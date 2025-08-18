@@ -224,8 +224,41 @@ with st.sidebar:
     )
     
     def add_vehicle():
-        st.session_state.vehicles_input.append(st.session_state.selected_vehicle)
+        new_vehicle = st.session_state.selected_vehicle
+        ship_dims = (ship_length, ship_width)
+        ship_balance = (balance_point_x, balance_point_y)
+    
+        # Tambahkan kendaraan baru ke daftar input dulu
+        st.session_state.vehicles_input.append(new_vehicle)
+    
+        # Hitung luas terpakai sebelum penempatan
+        luas_kapal = ship_length * ship_width
+        luas_terpakai = sum(v['rect'][2]*v['rect'][3] for v in st.session_state.placed_vehicles)
+        persentase_terpakai = (luas_terpakai / luas_kapal) * 100 if luas_kapal > 0 else 0
+    
+        # Jika setelah penambahan kendaraan baru, muatan >=50%, reset dan susun ulang semua kendaraan
+        total_vehicles = st.session_state.vehicles_input
+        if persentase_terpakai >= 50:
+            st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = find_initial_optimal_placement(
+                ship_dims, ship_balance, total_vehicles
+            )
+        else:
+            # Masukkan kendaraan baru saja berdasarkan mode center
+            best_pos = find_placement_for_single_vehicle(
+                ship_dims, ship_balance, new_vehicle, st.session_state.placed_vehicles
+            )
+            if best_pos:
+                st.session_state.placed_vehicles.append({'tipe': new_vehicle, 'rect': best_pos})
+            else:
+                st.session_state.unplaced_vehicles.append(new_vehicle)
+    
 
+
+
+
+
+
+    
     def reset_vehicles():
         st.session_state.vehicles_input = []
         st.session_state.placed_vehicles = []
