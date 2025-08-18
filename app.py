@@ -152,12 +152,17 @@ def visualize_placement(ship_dims, ship_balance_point, placed_vehicles):
     ax.set_xlim(0, ship_length)
     ax.set_ylim(0, ship_width)
     ax.set_aspect('equal', adjustable='box')
+    ax.text(0, lebar_kapal+1, "Belakang", ha='left', va='center', fontsize=10, fontweight='bold') 
+    ax.text(panjang_kapal, lebar_kapal+1, "Depan", ha='right', va='center', fontsize=10, fontweight='bold') 
+    ax.text(panjang_kapal+1, 0, "Kanan", ha='center', va='bottom', rotation=270, fontsize=10, fontweight='bold') 
+    ax.text(panjang_kapal+1, lebar_kapal, "Kiri", ha='center', va='top', rotation=270, fontsize=10, fontweight='bold')
     plt.xlabel("Panjang Kapal (meter)")
     plt.ylabel("Lebar Kapal (meter)")
     plt.title("Visualisasi Simulasi Muat Kapal")
     plt.legend()
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.tight_layout()
+    
     return fig
 
 # --- UI STREAMLIT ---
