@@ -213,7 +213,7 @@ else:
 
 # --- Notifikasi Kendaraan Tidak Dapat Dimuat ---
 if unplaced_vehicles:
-    st.error(f"⚠️ Peringatan: {vehicle_type:.2f} kendaraan tidak dapat ditempatkan: {', '.join(unplaced_vehicles)}")
+    st.error(f"⚠️ Peringatan: {len(unplaced_vehicles)} kendaraan tidak dapat ditempatkan: {', '.join(unplaced_vehicles)}")
 else:
     if st.session_state.vehicles_to_load: # Hanya tampilkan sukses jika ada kendaraan yang diusulkan
         st.success("🎉 Semua kendaraan berhasil ditempatkan!")
