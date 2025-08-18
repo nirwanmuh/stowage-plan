@@ -145,6 +145,8 @@ def arrange_balance_xy_optimal(gol_list, panjang_kapal, lebar_kapal, x_target, y
 
     return placements
 
+arrange_balance_xy = arrange_balance_xy_optimal
+
 def optimize_positions(placements, panjang_kapal, lebar_kapal, x_target, y_target, max_iter=500, step=0.5):
     """Optimasi posisi kendaraan dengan simulated annealing sederhana."""
     if not placements:
