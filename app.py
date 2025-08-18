@@ -76,15 +76,15 @@ def find_placement_for_single_vehicle(ship_dims, ship_balance_point, vehicle_typ
 
     if persentase_terpakai < 50:
     # Mode center fleksibel
-    center_x, center_y = ship_balance_point
-    panjang, lebar = VEHICLE_DATA["dimensi"][vehicle_type_to_add]
-    candidate_points = [
-        (center_x - panjang/2, center_y - lebar/2),  # center
-        (0, 0),  # sudut kiri-belakang
-        (ship_length - panjang, 0),  # sudut kanan-belakang
-        (0, ship_width - lebar),  # sudut kiri-depan
-        (ship_length - panjang, ship_width - lebar)  # sudut kanan-depan
-    ]
+        center_x, center_y = ship_balance_point
+        panjang, lebar = VEHICLE_DATA["dimensi"][vehicle_type_to_add]
+        candidate_points = [
+            (center_x - panjang/2, center_y - lebar/2),  # center
+            (0, 0),  # sudut kiri-belakang
+            (ship_length - panjang, 0),  # sudut kanan-belakang
+            (0, ship_width - lebar),  # sudut kiri-depan
+            (ship_length - panjang, ship_width - lebar)  # sudut kanan-depan
+        ]
     else:
     # Hasilkan semua titik kandidat dari sudut kendaraan yang sudah ada.
         candidate_points = [(0, 0)]
