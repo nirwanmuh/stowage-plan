@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import copy
 
+st.set_page_config(page_title="Stowage Plan", layout="wide")
+
 # --- KONFIGURASI DATA KENDARAAN ---
 VEHICLE_DATA = {
     "dimensi": {
@@ -161,7 +163,7 @@ def visualize_placement(ship_dims, ship_balance_point, placed_vehicles):
 # --- UI STREAMLIT ---
 
 st.set_page_config(layout="wide")
-st.title("🚢 Aplikasi Simulasi Muat Kapal Optimal (Real-time)")
+st.title("Stowage Plan")
 
 # Inisialisasi session state
 if 'vehicles_input' not in st.session_state:
