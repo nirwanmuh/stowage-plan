@@ -137,10 +137,12 @@ def arrange_balance_xy_optimal(kendaraan_list, panjang_kapal, lebar_kapal,
         if valid:
             valid.sort(key=lambda k: k[0])
             _, x_best, y_best = valid[0]
-            placements.append((x_best, y_best, w, h, gol))
+            x_best, y_best = 0, 0
+            placements.append((gol, x_best, y_best))
         else:
             # fallback → taruh di pojok (0,0)
-            placements.append((0, 0, w, h, gol))
+            x_best, y_best = 0, 0
+            placements.append((gol, x_best, y_best))
     
     return placements
 
