@@ -2,7 +2,6 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import math
-import random
 
 st.set_page_config(page_title="Stowage Plan", layout="wide")
 
@@ -88,170 +87,82 @@ def validate_placements(placements, panjang, lebar, expected_count):
         return False, "terdapat tumpang tindih kendaraan"
     return True, None
 
-def arrange_balance_xy_optimal(gol_list, panjang_kapal, lebar_kapal, x_target, y_target, luas_kapal=None):
-    # Hitung luas_kapal otomatis jika tidak dikirim oleh pemanggil
-    if luas_kapal is None:
-        luas_kapal = panjang_kapal * lebar_kapal
-
+def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
     placements = []
     if not gol_list:
         return placements
 
-    # total area semua kendaraan (dipakai untuk cek sisa luas awal)
-    luas_terpakai = sum(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1] for g in gol_list)
-    sisa_luas = luas_kapal - luas_terpakai
-
-    # urutkan dari yang terbesar biar penempelan lebih rapat
-    sorted_gols = sorted(gol_list, key=lambda g: -(KENDARAAN[g]["dim"][0] * KENDARAAN[g]["dim"][1]))
+    # Urutkan kendaraan dari paling berat ke ringan
+    sorted_gols = sorted(gol_list, key=lambda g: -KENDARAAN[g]["berat"])
 
     for gol in sorted_gols:
         pjg, lbr = KENDARAAN[gol]["dim"]
         best_choice = None
         best_score = float("inf")
 
-        candidate_positions = []
+        # Kandidat posisi deterministik: grid dari tengah ke luar
+        x_candidates = []
+        y_candidates = []
 
-        if not placements:
-            # kendaraan pertama → letakkan mendekati target
-            candidate_positions.append((max(0, x_target - pjg/2), max(0, y_target - lbr/2)))
-        else:
-            # aturan 1: sisa luas > 50% → tempel ke kendaraan lain
-            if sisa_luas > 0.5 * luas_kapal:
-                for g2, x2, y2 in placements:
-                    pjg2, lbr2 = KENDARAAN[g2]["dim"]
-                    # nempel kanan sejajar bawah
-                    candidate_positions.append((x2 + pjg2, y2))
-                    # nempel kanan sejajar atas
-                    candidate_positions.append((x2 + pjg2, y2 + lbr2 - lbr))
-                    
-                    # nempel kiri sejajar bawah
-                    candidate_positions.append((x2 - pjg, y2))
-                    # nempel kiri sejajar atas
-                    candidate_positions.append((x2 - pjg, y2 + lbr2 - lbr))
-                    
-                    # nempel depan sejajar kiri
-                    candidate_positions.append((x2, y2 + lbr2))
-                    # nempel depan sejajar kanan
-                    candidate_positions.append((x2 + pjg2 - pjg, y2 + lbr2))
-                    
-                    # nempel belakang sejajar kiri
-                    candidate_positions.append((x2, y2 - lbr))
-                    # nempel belakang sejajar kanan
-                    candidate_positions.append((x2 + pjg2 - pjg, y2 - lbr))
+        # posisi tengah ke depan/belakang
+        step_x = pjg
+        cx = max(0.0, min(x_target - pjg/2, panjang_kapal - pjg))
+        while cx >= 0:
+            x_candidates.append(cx)
+            cx -= step_x
+        cx = max(0.0, min(x_target - pjg/2, panjang_kapal - pjg))
+        while cx + pjg <= panjang_kapal:
+            x_candidates.append(cx)
+            cx += step_x
 
-            else:
-                # aturan 2: sisa luas < 50% → mulai dari belakang (x=0), scan y
-                step_y = max(1, int(lbr))  # jaga jangan 0
-                for y_try in range(0, max(1, int(lebar_kapal - lbr)) + 1, step_y):
-                    candidate_positions.append((0, y_try))
+        # posisi tengah ke kiri/kanan
+        step_y = lbr
+        cy = max(0.0, min(y_target - lbr/2, lebar_kapal - lbr))
+        while cy >= 0:
+            y_candidates.append(cy)
+            cy -= step_y
+        cy = max(0.0, min(y_target - lbr/2, lebar_kapal - lbr))
+        while cy + lbr <= lebar_kapal:
+            y_candidates.append(cy)
+            cy += step_y
 
-        # evaluasi kandidat
-        for x_try, y_try in candidate_positions:
-            tmp = placements.copy()
-            tmp.append((gol, x_try, y_try))
-            valid, _ = validate_placements(tmp, panjang_kapal, lebar_kapal, len(tmp))
-            if not valid:
-                continue
-            _, xcm, ycm = compute_cm(tmp)
-            score = math.hypot(xcm - x_target, ycm - y_target)
-            if score < best_score:
-                best_score = score
-                best_choice = (gol, x_try, y_try)
+        # Coba semua kombinasi posisi kandidat
+        for x in x_candidates:
+            for y in y_candidates:
+                tmp = placements.copy()
+                tmp.append((gol, x, y))
+
+                # cek overlap
+                if has_overlap(tmp):
+                    continue
+                # cek dalam batas kapal
+                if x < -1e-6 or y < -1e-6 or (x + pjg) > panjang_kapal + 1e-6 or (y + lbr) > lebar_kapal + 1e-6:
+                    continue
+
+                _, xcm_tmp, ycm_tmp = compute_cm(tmp)
+                score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
+
+                if score < best_score:
+                    best_score = score
+                    best_choice = (x, y)
 
         if best_choice:
-            placements.append(best_choice)
+            placements.append((gol, best_choice[0], best_choice[1]))
 
     return placements
 
-arrange_balance_xy = arrange_balance_xy_optimal
-
-def optimize_positions(placements, panjang_kapal, lebar_kapal, x_target, y_target, max_iter=500, step=0.5):
-    """Optimasi posisi kendaraan dengan simulated annealing sederhana."""
-    if not placements:
-        return placements
-    
-    best = placements.copy()
-    best_mass, best_xcm, best_ycm = compute_cm(best)
-    best_score = (best_xcm - x_target)**2 + (best_ycm - y_target)**2
-    
-    current = best.copy()
-    current_score = best_score
-    
-    T = 1.0  # temperatur awal
-    cooling = 0.995  # faktor pendinginan
-    
-    for _ in range(max_iter):
-        # pilih kendaraan acak
-        idx = random.randrange(len(current))
-        gol, x, y = current[idx]
-        pjg, lbr = KENDARAAN[gol]["dim"]
-        
-        # geser posisi acak kecil
-        new_x = min(max(0.0, x + random.uniform(-step, step)), panjang_kapal - pjg)
-        new_y = min(max(0.0, y + random.uniform(-step, step)), lebar_kapal - lbr)
-        
-        candidate = current.copy()
-        candidate[idx] = (gol, new_x, new_y)
-        
-        if has_overlap(candidate):
-            continue  # skip kalau tabrakan
-        
-        _, xcm, ycm = compute_cm(candidate)
-        score = (xcm - x_target)**2 + (ycm - y_target)**2
-        
-        # kriteria penerimaan (SA)
-        if score < current_score or random.random() < math.exp((current_score - score) / max(T,1e-6)):
-            current = candidate
-            current_score = score
-            
-            if score < best_score:
-                best = candidate
-                best_score = score
-        
-        T *= cooling  # turunkan temperatur
-    
-    return best
-
-def repack_with_shuffle(gol_list, n_try=20):
-    for _ in range(n_try):
-        random.shuffle(gol_list)
-        placements = arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal,
-                                        titik_seimbang_vertikal, titik_seimbang_horizontal)
-        ok, _ = validate_placements(placements, panjang_kapal, lebar_kapal, len(gol_list))
-        if ok:
-            return placements
-    return []
-
-
 # ======= Add vehicle handler =======
 if st.sidebar.button("Tambah Kendaraan"):
-    # Ambil semua kendaraan lama + yang baru
     candidate_list = st.session_state.kendaraan + [pilih_gol]
-
-    # Susun ulang semuanya dari nol
     candidate_placements = arrange_balance_xy(candidate_list, panjang_kapal, lebar_kapal,
-                                          titik_seimbang_vertikal, titik_seimbang_horizontal)
-
-    ok, reason = validate_placements(candidate_placements, panjang_kapal, lebar_kapal, len(candidate_list))
-    
-    # kalau gagal → coba optimasi penuh
-    if not ok:
-        candidate_placements = arrange_balance_xy(candidate_list, panjang_kapal, lebar_kapal,
-                                                  titik_seimbang_vertikal, titik_seimbang_horizontal)
-        candidate_placements = optimize_positions(candidate_placements, panjang_kapal, lebar_kapal,
-                                                  titik_seimbang_vertikal, titik_seimbang_horizontal,
-                                                  max_iter=5000, step=0.5)
-
-    # Validasi hasil
+                                              titik_seimbang_vertikal, titik_seimbang_horizontal)
     ok, reason = validate_placements(candidate_placements, panjang_kapal, lebar_kapal, len(candidate_list))
     if ok:
-        # Simpan daftar kendaraan (bukan posisi, supaya selalu bisa re-arrange total)
-        st.session_state.kendaraan = candidate_list
+        st.session_state.kendaraan.append(pilih_gol)
         st.success(f"Berhasil menambahkan golongan {pilih_gol}")
     else:
-        st.error(f"Tidak bisa menambahkan golongan {pilih_gol}")
+        st.error(f"tidak bisa menambahkan golongan {pilih_gol} lagi")
         st.write(f"*Alasan: {reason}*")
-
 
 if st.sidebar.button("Reset Kendaraan"):
     st.session_state.kendaraan = []
@@ -260,15 +171,6 @@ if st.sidebar.button("Reset Kendaraan"):
 # ======= Arrange current kendaraan =======
 placements = arrange_balance_xy(st.session_state.kendaraan, panjang_kapal, lebar_kapal,
                                 titik_seimbang_vertikal, titik_seimbang_horizontal)
-
-# optimasi tambahan
-placements = optimize_positions(
-    placements, panjang_kapal, lebar_kapal,
-    titik_seimbang_vertikal, titik_seimbang_horizontal,
-    max_iter=10000, step=2.0
-)
-
-
 
 # compute stats
 luas_terpakai = sum(KENDARAAN[gol]["dim"][0] * KENDARAAN[gol]["dim"][1] for gol, _, _ in placements)
