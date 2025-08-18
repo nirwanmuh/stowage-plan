@@ -212,23 +212,15 @@ with st.sidebar:
     st.button("➕ Tambah Kendaraan", on_click=add_vehicle)
     st.button("🗑️ Reset Daftar", on_click=reset_vehicles)
 
-# --- LOGIKA SIMULASI INKREMENTAL ---
-# Cek perubahan dimensi kapal atau jumlah kendaraan.
-def place_all_vehicles(ship_dims, ship_balance_point, vehicles_to_load):
-    """
-    Menempatkan semua kendaraan sekaligus secara optimal.
-    Mengembalikan list placed_vehicles dan unplaced_vehicles.
-    """
-    placed_vehicles, unplaced_vehicles = find_initial_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load)
-    return placed_vehicles, unplaced_vehicles
-
+# --- SIMULASI PENEMPATAN OPTIMAL SEMUA KENDARAAN ---
 ship_dims = (ship_length, ship_width)
 ship_balance_point = (balance_point_x, balance_point_y)
 
 with st.spinner("Menghitung penempatan optimal semua kendaraan..."):
-    st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = place_all_vehicles(
+    st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = find_initial_optimal_placement(
         ship_dims, ship_balance_point, st.session_state.vehicles_input
     )
+    
 # --- AREA UTAMA ---
 with st.container():
     st.header("Hasil Simulasi")
