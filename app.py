@@ -238,7 +238,7 @@ if st.session_state.last_params != current_params:
         with st.spinner("Mensimulasikan ulang penempatan..."):
             ship_dims = (ship_length, ship_width)
             ship_balance_point = (balance_point_x, balance_point_y)
-            # Pastikan find_optimal_placement menerima salinan untuk menghindari modifikasi langsung
+            # Perbaikan: find_optimal_placement mengembalikan daftar kendaraan yang berhasil ditempatkan
             placed, unplaced = find_optimal_placement(ship_dims, ship_balance_point, list(st.session_state.vehicles_to_load))
             st.session_state.simulation_result = (placed, unplaced)
     else:
@@ -248,6 +248,7 @@ if st.session_state.last_params != current_params:
 # Menggunakan st.container() dengan width=True untuk membuat bagian ini mengisi lebar penuh horizontal
 with st.container():
     st.header("Hasil Simulasi")
+    # Perbaikan: Mengambil hasil simulasi dari session state yang diperbarui
     placed_vehicles, unplaced_vehicles = st.session_state.simulation_result
     
     if placed_vehicles:
@@ -279,13 +280,14 @@ else:
 st.markdown("---") # Garis pemisah untuk layout
 
 # --- Daftar Muatan ---
-st.header("Daftar Muatan")
-if not st.session_state.vehicles_to_load:
-    st.write("Belum ada kendaraan yang ditambahkan.")
+st.header("Daftar Kendaraan yang Berhasil Dimuat")
+if not placed_vehicles:
+    st.write("Belum ada kendaraan yang berhasil ditempatkan.")
 else:
-    # Membuat DataFrame dengan detail kendaraan yang lebih lengkap (dimensi dan berat)
+    # Perbaikan: Menggunakan `placed_vehicles` untuk membuat DataFrame
     data_for_df = []
-    for vehicle_type in st.session_state.vehicles_to_load:
+    for vehicle in placed_vehicles:
+        vehicle_type = vehicle['tipe']
         panjang, lebar = VEHICLE_DATA["dimensi"][vehicle_type]
         berat = VEHICLE_DATA["berat"][vehicle_type]
         data_for_df.append({
