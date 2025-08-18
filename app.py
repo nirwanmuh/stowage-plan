@@ -65,7 +65,30 @@ def find_placement_for_single_vehicle(ship_dims, ship_balance_point, vehicle_typ
     Menggunakan logika yang sama dengan yang sebelumnya, tetapi hanya untuk satu kendaraan.
     """
     ship_length, ship_width = ship_dims
-    
+    panjang_kendaraan, lebar_kendaraan = VEHICLE_DATA["dimensi"][vehicle_type_to_add]
+
+    # Hitung persentase pemakaian area dek kapal saat ini
+    luas_kapal = ship_length * ship_width
+    luas_terpakai = sum(v['rect'][2]*v['rect'][3] for v in current_placed_vehicles)
+    persentase_terpakai = (luas_terpakai / luas_kapal) * 100 if luas_kapal > 0 else 0
+
+    candidate_points = []
+
+    if persentase_terpakai < 50:
+        # Mode center: mulai dari tengah kapal, arahkan ke pinggir
+        center_x, center_y = ship_balance_point
+        # Buat grid candidate di sekitar titik tengah
+        step_x, step_y = 1.0, 1.0  # jarak langkah kandidat dalam meter
+        for dx in np.arange(0, ship_length/2, step_x):
+            for dy in np.arange(0, ship_width/2, step_y):
+                # 4 kuadran dari titik tengah
+                candidate_points.extend([
+                    (center_x + dx, center_y + dy),
+                    (center_x + dx, center_y - dy),
+                    (center_x - dx, center_y + dy),
+                    (center_x - dx, center_y - dy),
+                ])
+    else:
     # Hasilkan semua titik kandidat dari sudut kendaraan yang sudah ada.
     candidate_points = [(0, 0)]
     for pv in current_placed_vehicles:
