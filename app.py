@@ -222,36 +222,36 @@ with st.sidebar:
 
 
     def add_vehicle():
-    new_vehicle = st.session_state.selected_vehicle
-    ship_dims = (ship_length, ship_width)
-    ship_balance = (balance_point_x, balance_point_y)
-
-    # Tambahkan kendaraan baru ke daftar input dulu
-    st.session_state.vehicles_input.append(new_vehicle)
-
-    # Hitung luas terpakai termasuk kendaraan baru
-    luas_kapal = ship_length * ship_width
-    luas_terpakai_sementara = sum(v['rect'][2]*v['rect'][3] for v in st.session_state.placed_vehicles)
-    panjang_baru, lebar_baru = VEHICLE_DATA["dimensi"][new_vehicle]
-    luas_terpakai_sementara += panjang_baru * lebar_baru
-    persentase_terpakai_sementara = (luas_terpakai_sementara / luas_kapal) * 100 if luas_kapal > 0 else 0
-
-    # Jika persentase >=50% setelah kendaraan baru, reset semua dan susun ulang semua kendaraan
-    if persentase_terpakai_sementara >= 50:
-        st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = find_initial_optimal_placement(
-            ship_dims, ship_balance, st.session_state.vehicles_input
-        )
-    else:
-        # Mode center: tambah kendaraan baru saja
-        best_pos = find_placement_for_single_vehicle(
-            ship_dims, ship_balance, new_vehicle, st.session_state.placed_vehicles
-        )
-        if best_pos:
-            st.session_state.placed_vehicles.append({'tipe': new_vehicle, 'rect': best_pos})
+        new_vehicle = st.session_state.selected_vehicle
+        ship_dims = (ship_length, ship_width)
+        ship_balance = (balance_point_x, balance_point_y)
+    
+        # Tambahkan kendaraan baru ke daftar input dulu
+        st.session_state.vehicles_input.append(new_vehicle)
+    
+        # Hitung luas terpakai termasuk kendaraan baru
+        luas_kapal = ship_length * ship_width
+        luas_terpakai_sementara = sum(v['rect'][2]*v['rect'][3] for v in st.session_state.placed_vehicles)
+        panjang_baru, lebar_baru = VEHICLE_DATA["dimensi"][new_vehicle]
+        luas_terpakai_sementara += panjang_baru * lebar_baru
+        persentase_terpakai_sementara = (luas_terpakai_sementara / luas_kapal) * 100 if luas_kapal > 0 else 0
+    
+        # Jika persentase >=50% setelah kendaraan baru, reset semua dan susun ulang semua kendaraan
+        if persentase_terpakai_sementara >= 50:
+            st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = find_initial_optimal_placement(
+                ship_dims, ship_balance, st.session_state.vehicles_input
+            )
         else:
-            st.session_state.unplaced_vehicles.append(new_vehicle)
-
-
+            # Mode center: tambah kendaraan baru saja
+            best_pos = find_placement_for_single_vehicle(
+                ship_dims, ship_balance, new_vehicle, st.session_state.placed_vehicles
+            )
+            if best_pos:
+                st.session_state.placed_vehicles.append({'tipe': new_vehicle, 'rect': best_pos})
+            else:
+                st.session_state.unplaced_vehicles.append(new_vehicle)
+    
+    
     
     def reset_vehicles():
         st.session_state.vehicles_input = []
