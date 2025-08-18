@@ -119,10 +119,26 @@ def arrange_balance_xy_optimal(gol_list, panjang_kapal, lebar_kapal, x_target, y
             if sisa_luas > 0.5 * luas_kapal:
                 for g2, x2, y2 in placements:
                     pjg2, lbr2 = KENDARAAN[g2]["dim"]
-                    candidate_positions.append((x2 + pjg2, y2))   # nempel kanan
-                    candidate_positions.append((x2 - pjg,  y2))   # nempel kiri
-                    candidate_positions.append((x2, y2 + lbr2))   # nempel depan
-                    candidate_positions.append((x2, y2 - lbr))    # nempel belakang
+                    # nempel kanan sejajar bawah
+                    candidate_positions.append((x2 + pjg2, y2))
+                    # nempel kanan sejajar atas
+                    candidate_positions.append((x2 + pjg2, y2 + lbr2 - lbr))
+                    
+                    # nempel kiri sejajar bawah
+                    candidate_positions.append((x2 - pjg, y2))
+                    # nempel kiri sejajar atas
+                    candidate_positions.append((x2 - pjg, y2 + lbr2 - lbr))
+                    
+                    # nempel depan sejajar kiri
+                    candidate_positions.append((x2, y2 + lbr2))
+                    # nempel depan sejajar kanan
+                    candidate_positions.append((x2 + pjg2 - pjg, y2 + lbr2))
+                    
+                    # nempel belakang sejajar kiri
+                    candidate_positions.append((x2, y2 - lbr))
+                    # nempel belakang sejajar kanan
+                    candidate_positions.append((x2 + pjg2 - pjg, y2 - lbr))
+
             else:
                 # aturan 2: sisa luas < 50% → mulai dari belakang (x=0), scan y
                 step_y = max(1, int(lbr))  # jaga jangan 0
