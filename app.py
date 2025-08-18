@@ -62,9 +62,8 @@ def calculate_combined_cg(vehicles):
 def find_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load_original):
     """
     Algoritma Greedy untuk menemukan penempatan kendaraan yang optimal.
-    Menggunakan pendekatan 'candidate points' untuk mengoptimalkan ruang pencarian.
-    Akan menempatkan kendaraan dalam urutan yang diberikan, tanpa menggantikan yang sudah ada.
-    Kendaraan pertama akan diutamakan untuk ditempatkan di tengah kapal.
+    Menggunakan pendekatan 'candidate points' untuk mengoptimalkan ruang pencarian,
+    lebih baik daripada scan grid brute-force.
     """
     ship_length, ship_width = ship_dims
     placed_vehicles = []
@@ -74,57 +73,37 @@ def find_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load_origi
     vehicles_to_load_sorted = sorted(vehicles_to_load_original, key=lambda v: VEHICLE_DATA["dimensi"][v][0] * VEHICLE_DATA["dimensi"][v][1], reverse=True)
 
     # Inisialisasi daftar titik-titik kandidat untuk penempatan kendaraan baru.
-    candidate_points = [(0, 0)] # Dimulai dengan titik (0,0).
+    # Dimulai dengan titik (0,0). Titik-titik ini adalah sudut kiri atas dari potensi ruang kosong.
+    candidate_points = [(0, 0)]
 
     for i, vehicle_type in enumerate(vehicles_to_load_sorted):
         panjang_kendaraan, lebar_kendaraan = VEHICLE_DATA["dimensi"][vehicle_type]
         best_position = None
         min_distance = float('inf')
         
-        # --- LOGIKA KHUSUS UNTUK KENDARAAN PERTAMA ---
-        if not placed_vehicles: # Jika ini adalah kendaraan pertama yang akan ditempatkan
-            # Hitung posisi agar kendaraan berada tepat di tengah kapal
-            center_x_ship = ship_balance_point[0]
-            center_y_ship = ship_balance_point[1]
-            
-            # Posisi sudut kiri bawah kendaraan agar titik tengahnya berada di titik seimbang kapal
-            proposed_x = center_x_ship - panjang_kendaraan / 2
-            proposed_y = center_y_ship - lebar_kendaraan / 2
-            
-            # Periksa apakah posisi ini valid (di dalam batas kapal)
-            if (0 <= proposed_x and proposed_x + panjang_kendaraan <= ship_length and
-                0 <= proposed_y and proposed_y + lebar_kendaraan <= ship_width):
-                
-                # Jika valid, jadikan ini posisi terbaik untuk kendaraan pertama
-                best_position = (proposed_x, proposed_y, panjang_kendaraan, lebar_kendaraan)
-                min_distance = 0 # Jarak ideal, langsung pilih ini
-            
-            # Jika tidak bisa ditempatkan tepat di tengah, fallback ke pencarian greedy normal
-            # (Tidak perlu else, karena best_position akan tetap None, dan loop di bawah akan berjalan)
-        # --- AKHIR LOGIKA KHUSUS KENDARAAN PERTAMA ---
+        # Buat daftar kandidat posisi yang valid (tidak tumpang tindih dan dalam batas kapal)
+        valid_candidate_positions = []
+        # Iterasi melalui semua titik kandidat yang ada.
+        # Kami mengurutkan kandidat untuk eksplorasi yang lebih teratur (misalnya, dari kiri-atas)
+        for cx, cy in sorted(candidate_points, key=lambda p: (p[0], p[1])):
+            # Periksa apakah kendaraan muat dari titik kandidat ini dalam batas kapal
+            if cx + panjang_kendaraan <= ship_length and cy + lebar_kendaraan <= ship_width:
+                new_vehicle_rect_proposal = (cx, cy, panjang_kendaraan, lebar_kendaraan)
+                # Periksa tumpang tindih dengan kendaraan yang sudah ditempatkan
+                if not check_overlap(new_vehicle_rect_proposal, placed_vehicles):
+                    valid_candidate_positions.append(new_vehicle_rect_proposal)
         
-        # Jika best_position belum ditemukan (bukan kendaraan pertama atau tidak bisa di tengah),
-        # lakukan pencarian greedy dari titik kandidat yang ada.
-        if best_position is None:
-            # Buat daftar kandidat posisi yang valid (tidak tumpang tindih dan dalam batas kapal)
-            valid_candidate_positions = []
-            for cx, cy in sorted(candidate_points, key=lambda p: (p[0], p[1])):
-                if cx + panjang_kendaraan <= ship_length and cy + lebar_kendaraan <= ship_width:
-                    new_vehicle_rect_proposal = (cx, cy, panjang_kendaraan, lebar_kendaraan)
-                    if not check_overlap(new_vehicle_rect_proposal, placed_vehicles):
-                        valid_candidate_positions.append(new_vehicle_rect_proposal)
+        # Dari kandidat yang valid, pilih yang paling optimal berdasarkan jarak ke CG kapal
+        for proposed_rect in valid_candidate_positions:
+            temp_placed = copy.deepcopy(placed_vehicles)
+            temp_placed.append({'tipe': vehicle_type, 'rect': proposed_rect})
             
-            # Dari kandidat yang valid, pilih yang paling optimal berdasarkan jarak ke CG kapal
-            for proposed_rect in valid_candidate_positions:
-                temp_placed = copy.deepcopy(placed_vehicles)
-                temp_placed.append({'tipe': vehicle_type, 'rect': proposed_rect})
-                
-                cg_x, cg_y = calculate_combined_cg(temp_placed)
-                distance = np.sqrt((cg_x - ship_balance_point[0])**2 + (cg_y - ship_balance_point[1])**2)
-                
-                if distance < min_distance:
-                    min_distance = distance
-                    best_position = proposed_rect
+            cg_x, cg_y = calculate_combined_cg(temp_placed)
+            distance = np.sqrt((cg_x - ship_balance_point[0])**2 + (cg_y - ship_balance_point[1])**2)
+            
+            if distance < min_distance:
+                min_distance = distance
+                best_position = proposed_rect
         
         if best_position:
             # Tempatkan kendaraan jika posisi terbaik ditemukan
@@ -134,14 +113,9 @@ def find_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load_origi
             vx, vy, vw, vh = best_position
             
             newly_generated_points = []
-            newly_generated_points.append((vx + vw, vy)) # Sudut kanan-bawah dari kotak kendaraan
-            newly_generated_points.append((vx, vy + vh)) # Sudut kiri-atas dari kotak kendaraan
+            newly_generated_points.append((vx + vw, vy)) # Sudut kanan atas kotak kendaraan (untuk ruang di kanan)
+            newly_generated_points.append((vx, vy + vh)) # Sudut kiri bawah kotak kendaraan (untuk ruang di atas)
             
-            # Tambahkan juga titik yang dihasilkan dari sudut-sudut lain dari kotak kendaraan yang baru ditempatkan
-            # Ini bisa membantu menemukan slot di antara kendaraan.
-            newly_generated_points.append((vx + vw, vy + vh)) # Sudut kanan-atas dari kotak kendaraan
-            newly_generated_points.append((vx, vy)) # Sudut kiri-bawah kendaraan itu sendiri (jika ada ruang di kiri/bawahnya)
-
             # Gabungkan dan saring titik kandidat
             unique_candidate_points = set(candidate_points) # Mulai dengan yang sudah ada
             
@@ -151,8 +125,8 @@ def find_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load_origi
                     is_inside_placed = False
                     for pv in placed_vehicles:
                         px, py, pw, ph = pv['rect']
-                        # Jika titik kandidat berada dalam (atau di batas) kendaraan yang ditempatkan, jangan tambahkan
-                        if px < ncp[0] < px + pw and py < ncp[1] < py + ph: # Gunakan < untuk memastikan tidak di batas
+                        # Jika titik kandidat berada dalam kendaraan yang ditempatkan, jangan tambahkan
+                        if px < ncp[0] < px + pw and py < ncp[1] < py + ph:
                             is_inside_placed = True
                             break
                     if not is_inside_placed:
