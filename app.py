@@ -88,94 +88,68 @@ def validate_placements(placements, panjang, lebar, expected_count):
     return True, None
 
 def arrange_balance_xy(gol_list, panjang_kapal, lebar_kapal, x_target, y_target):
-    STEP = 0.1  # langkah pencarian posisi (meter)
     placements = []
     if not gol_list:
         return placements
 
-    min_row_height = min(KENDARAAN[g]["dim"][1] for g in KENDARAAN)
-    n_rows = max(1, int(lebar_kapal // min_row_height))
-    row_height = min_row_height
-    total_rows_height = n_rows * row_height
-    start_y = max(0.0, (lebar_kapal - total_rows_height) / 2.0)
-    row_ys = [start_y + i * row_height for i in range(n_rows)]
-    row_state = [{"left_cursor": x_target, "right_cursor": x_target, "placed": []} for _ in range(n_rows)]
-
+    # Urutkan kendaraan dari paling berat ke ringan
     sorted_gols = sorted(gol_list, key=lambda g: -KENDARAAN[g]["berat"])
 
     for gol in sorted_gols:
+        pjg, lbr = KENDARAAN[gol]["dim"]
         best_choice = None
         best_score = float("inf")
-        pjg, lbr = KENDARAAN[gol]["dim"]
 
-        for ri in range(n_rows):
-            # Cek ke kanan (pakai titik tengah kendaraan)
-            center_pos = row_state[ri]["right_cursor"] + pjg / 2.0
-            while center_pos + pjg / 2.0 <= panjang_kapal + 1e-6:
-                center_y = row_ys[ri] + lbr / 2.0
-                pojok_x = center_pos - pjg / 2.0
-                pojok_y = center_y - lbr / 2.0
-            
+        # Kandidat posisi deterministik: grid dari tengah ke luar
+        x_candidates = []
+        y_candidates = []
+
+        # posisi tengah ke depan/belakang
+        step_x = pjg
+        cx = max(0.0, min(x_target - pjg/2, panjang_kapal - pjg))
+        while cx >= 0:
+            x_candidates.append(cx)
+            cx -= step_x
+        cx = max(0.0, min(x_target - pjg/2, panjang_kapal - pjg))
+        while cx + pjg <= panjang_kapal:
+            x_candidates.append(cx)
+            cx += step_x
+
+        # posisi tengah ke kiri/kanan
+        step_y = lbr
+        cy = max(0.0, min(y_target - lbr/2, lebar_kapal - lbr))
+        while cy >= 0:
+            y_candidates.append(cy)
+            cy -= step_y
+        cy = max(0.0, min(y_target - lbr/2, lebar_kapal - lbr))
+        while cy + lbr <= lebar_kapal:
+            y_candidates.append(cy)
+            cy += step_y
+
+        # Coba semua kombinasi posisi kandidat
+        for x in x_candidates:
+            for y in y_candidates:
                 tmp = placements.copy()
-                tmp.append((gol, float(pojok_x), float(pojok_y)))
-            
+                tmp.append((gol, x, y))
+
+                # cek overlap
+                if has_overlap(tmp):
+                    continue
+                # cek dalam batas kapal
+                if x < -1e-6 or y < -1e-6 or (x + pjg) > panjang_kapal + 1e-6 or (y + lbr) > lebar_kapal + 1e-6:
+                    continue
+
                 _, xcm_tmp, ycm_tmp = compute_cm(tmp)
                 score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
-                if score < best_score and not has_overlap(tmp):
+
+                if score < best_score:
                     best_score = score
-                    best_choice = (ri, "right", pojok_x, pojok_y)
-            
-                center_pos += STEP
+                    best_choice = (x, y)
 
-            # Cek ke kiri
-            # Cek ke kiri (pakai titik tengah kendaraan)
-            center_pos = row_state[ri]["left_cursor"] - pjg / 2.0
-            while center_pos - pjg / 2.0 >= 0.0 - 1e-6:
-                center_y = row_ys[ri] + lbr / 2.0
-                pojok_x = center_pos - pjg / 2.0
-                pojok_y = center_y - lbr / 2.0
-            
-                tmp = placements.copy()
-                tmp.append((gol, float(pojok_x), float(pojok_y)))
-            
-                _, xcm_tmp, ycm_tmp = compute_cm(tmp)
-                score = math.hypot(xcm_tmp - x_target, ycm_tmp - y_target)
-                if score < best_score and not has_overlap(tmp):
-                    best_score = score
-                    best_choice = (ri, "left", pojok_x, pojok_y)
-            
-                center_pos -= STEP
+        if best_choice:
+            placements.append((gol, best_choice[0], best_choice[1]))
 
-
-        if best_choice is not None:
-            ri, side, x_chosen, y_chosen = best_choice
-            placements.append((gol, float(x_chosen), float(y_chosen)))
-            row_state[ri]["placed"].append(gol)
-            if side == "right":
-                row_state[ri]["right_cursor"] = x_chosen + pjg
-            else:
-                row_state[ri]["left_cursor"] = x_chosen
-
-    # Koreksi posisi kalau keluar batas
-    if placements:
-        min_x = min(x for (_, x, _) in placements)
-        max_x = max(x + KENDARAAN[gol]["dim"][0] for (gol, x, _) in placements)
-        shift = 0.0
-        if min_x < 0.0:
-            shift = -min_x
-        elif max_x > panjang_kapal:
-            shift = -(max_x - panjang_kapal)
-        if shift != 0.0:
-            placements = [(gol, float(x + shift), float(y)) for gol, x, y in placements]
-
-    final = []
-    for gol, x, y in placements:
-        pjg, lbr = KENDARAAN[gol]["dim"]
-        x = max(0.0, min(x, panjang_kapal - pjg))
-        y = max(0.0, min(y, lebar_kapal - lbr))
-        final.append((gol, float(x), float(y)))
-
-    return final
+    return placements
 
 # ======= Add vehicle handler =======
 if st.sidebar.button("Tambah Kendaraan"):
