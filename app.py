@@ -214,28 +214,21 @@ with st.sidebar:
 
 # --- LOGIKA SIMULASI INKREMENTAL ---
 # Cek perubahan dimensi kapal atau jumlah kendaraan.
-if st.session_state.last_ship_dims != (ship_length, ship_width) or len(st.session_state.vehicles_input) != st.session_state.last_input_count:
-    ship_dims = (ship_length, ship_width)
-    ship_balance_point = (balance_point_x, balance_point_y)
+def place_all_vehicles(ship_dims, ship_balance_point, vehicles_to_load):
+    """
+    Menempatkan semua kendaraan sekaligus secara optimal.
+    Mengembalikan list placed_vehicles dan unplaced_vehicles.
+    """
+    placed_vehicles, unplaced_vehicles = find_initial_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load)
+    return placed_vehicles, unplaced_vehicles
 
-    with st.spinner("Mensimulasikan penempatan..."):
-        # Jika dimensi kapal berubah, lakukan simulasi ulang dari awal
-        if st.session_state.last_ship_dims != (ship_length, ship_width):
-            st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = find_initial_optimal_placement(ship_dims, ship_balance_point, st.session_state.vehicles_input)
-            st.session_state.last_ship_dims = (ship_length, ship_width)
-        # Jika kendaraan baru ditambahkan, coba tempatkan hanya kendaraan terakhir
-        elif len(st.session_state.vehicles_input) > st.session_state.last_input_count:
-            vehicle_to_add = st.session_state.vehicles_input[-1]
-            best_pos = find_placement_for_single_vehicle(ship_dims, ship_balance_point, vehicle_to_add, st.session_state.placed_vehicles)
-            
-            if best_pos:
-                st.session_state.placed_vehicles.append({'tipe': vehicle_to_add, 'rect': best_pos})
-            else:
-                st.session_state.unplaced_vehicles.append(vehicle_to_add)
-        
-        # Perbarui hitungan kendaraan terakhir
-        st.session_state.last_input_count = len(st.session_state.vehicles_input)
+ship_dims = (ship_length, ship_width)
+ship_balance_point = (balance_point_x, balance_point_y)
 
+with st.spinner("Menghitung penempatan optimal semua kendaraan..."):
+    st.session_state.placed_vehicles, st.session_state.unplaced_vehicles = place_all_vehicles(
+        ship_dims, ship_balance_point, st.session_state.vehicles_input
+    )
 # --- AREA UTAMA ---
 with st.container():
     st.header("Hasil Simulasi")
