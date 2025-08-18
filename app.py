@@ -90,12 +90,12 @@ def find_placement_for_single_vehicle(ship_dims, ship_balance_point, vehicle_typ
                 ])
     else:
     # Hasilkan semua titik kandidat dari sudut kendaraan yang sudah ada.
-    candidate_points = [(0, 0)]
-    for pv in current_placed_vehicles:
-        vx, vy, vw, vh = pv['rect']
-        candidate_points.append((vx + vw, vy))
-        candidate_points.append((vx, vy + vh))
-    
+        candidate_points = [(0, 0)]
+        for pv in current_placed_vehicles:
+            vx, vy, vw, vh = pv['rect']
+            candidate_points.append((vx + vw, vy))
+            candidate_points.append((vx, vy + vh))
+        
     # Filter titik-titik kandidat untuk memastikan berada di dalam batas kapal
     unique_candidate_points = set()
     for p in candidate_points:
