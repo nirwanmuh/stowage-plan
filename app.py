@@ -24,14 +24,19 @@ VEHICLE_DATA = {
 # --- FUNGSI-FUNGSI INTI ---
 
 def check_overlap(new_vehicle_rect, placed_vehicles):
-    """Mengecek apakah kendaraan baru tumpang tindih dengan kendaraan yang sudah ditempatkan."""
+    """
+    Mengecek apakah kendaraan baru tumpang tindih dengan kendaraan yang sudah ditempatkan.
+    Mengembalikan True jika ada tumpang tindih, False jika tidak.
+    """
     x1, y1, w1, h1 = new_vehicle_rect
     for placed in placed_vehicles:
         x2, y2, w2, h2 = placed['rect']
-        # Memeriksa tumpang tindih (true jika ada tumpang tindih)
-        if not (x1 + w1 <= x2 or x2 + w2 <= x1 or y1 + h1 <= y2 or y2 + h2 <= y1):
-            return True
-    return False
+        # Kondisi tidak tumpang tindih: jika satu persegi panjang berada di kiri, kanan, atas, atau bawah yang lain
+        if (x1 + w1 <= x2 or x2 + w2 <= x1 or y1 + h1 <= y2 or y2 + h2 <= y1):
+            continue # Tidak tumpang tindih, lanjutkan ke kendaraan berikutnya
+        else:
+            return True # Ada tumpang tindih
+    return False # Tidak ada tumpang tindih dengan kendaraan mana pun
 
 def calculate_combined_cg(vehicles):
     """Menghitung titik berat gabungan dari semua kendaraan yang dimuat."""
@@ -40,107 +45,91 @@ def calculate_combined_cg(vehicles):
     total_weight = sum(VEHICLE_DATA["berat"][v['tipe']] for v in vehicles)
     if total_weight == 0:
         return 0, 0 # Menghindari pembagian dengan nol jika tidak ada berat
-    weighted_sum_x = sum((v['rect'][0] + v['rect'][2] / 2) * VEHICLE_DATA["berat"][v['tipe']] for v in vehicles)
-    weighted_sum_y = sum((v['rect'][1] + v['rect'][3] / 2) * VEHICLE_DATA["berat"][v['tipe']] for v in vehicles)
+    
+    weighted_sum_x = 0
+    weighted_sum_y = 0
+
+    for v in vehicles:
+        # Titik tengah X dan Y kendaraan
+        mid_x = v['rect'][0] + v['rect'][2] / 2
+        mid_y = v['rect'][1] + v['rect'][3] / 2
+        weight = VEHICLE_DATA["berat"][v['tipe']]
+        weighted_sum_x += mid_x * weight
+        weighted_sum_y += mid_y * weight
+        
     return weighted_sum_x / total_weight, weighted_sum_y / total_weight
 
-def find_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load):
+def find_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load_original):
     """
     Algoritma Greedy untuk menemukan penempatan kendaraan yang optimal.
-    Menggunakan pendekatan 'candidate points' untuk mengoptimalkan ruang pencarian,
-    lebih baik daripada scan grid brute-force.
+    Menggunakan pendekatan 'candidate points' untuk mengoptimalkan ruang pencarian.
+    Akan menempatkan kendaraan dalam urutan yang diberikan, tanpa menggantikan yang sudah ada.
     """
     ship_length, ship_width = ship_dims
     placed_vehicles = []
     unplaced_vehicles = []
 
-    # Urutkan kendaraan dari yang terbesar agar yang besar punya prioritas tempat
-    sorted_vehicles = sorted(vehicles_to_load, key=lambda v: VEHICLE_DATA["dimensi"][v][0] * VEHICLE_DATA["dimensi"][v][1], reverse=True)
+    # Membuat salinan daftar kendaraan yang akan dimuat untuk diurutkan
+    vehicles_to_load_sorted = sorted(vehicles_to_load_original, key=lambda v: VEHICLE_DATA["dimensi"][v][0] * VEHICLE_DATA["dimensi"][v][1], reverse=True)
 
     # Inisialisasi daftar titik-titik kandidat untuk penempatan kendaraan baru.
-    # Dimulai dengan titik (0,0). Titik-titik ini adalah sudut kiri atas dari potensi ruang kosong.
+    # Dimulai dengan titik (0,0).
     candidate_points = [(0, 0)]
 
-    for i, vehicle_type in enumerate(sorted_vehicles):
+    for i, vehicle_type in enumerate(vehicles_to_load_sorted):
         panjang_kendaraan, lebar_kendaraan = VEHICLE_DATA["dimensi"][vehicle_type]
         best_position = None
         min_distance = float('inf')
         
-        # Iterasi melalui semua titik kandidat yang ada.
-        # Kami mengurutkan kandidat untuk eksplorasi yang lebih teratur (misalnya, dari kiri-atas)
+        # Buat daftar kandidat posisi yang valid (tidak tumpang tindih dan dalam batas kapal)
+        valid_candidate_positions = []
         for cx, cy in sorted(candidate_points, key=lambda p: (p[0], p[1])):
-            # Periksa apakah kendaraan muat dari titik kandidat ini dalam batas kapal
             if cx + panjang_kendaraan <= ship_length and cy + lebar_kendaraan <= ship_width:
-                new_vehicle_rect = (cx, cy, panjang_kendaraan, lebar_kendaraan)
-                
-                # Periksa tumpang tindih dengan kendaraan yang sudah ditempatkan
-                if not check_overlap(new_vehicle_rect, placed_vehicles):
-                    # Buat salinan sementara dari kendaraan yang sudah ditempatkan
-                    # untuk menghitung Titik Berat Gabungan (CG) baru
-                    temp_placed = copy.deepcopy(placed_vehicles)
-                    temp_placed.append({'tipe': vehicle_type, 'rect': new_vehicle_rect})
-                    
-                    # Hitung CG gabungan dan jaraknya ke titik seimbang kapal
-                    cg_x, cg_y = calculate_combined_cg(temp_placed)
-                    distance = np.sqrt((cg_x - ship_balance_point[0])**2 + (cg_y - ship_balance_point[1])**2)
-                    
-                    # Jika jarak ini lebih kecil dari jarak minimum yang ditemukan sebelumnya,
-                    # update posisi terbaik
-                    if distance < min_distance:
-                        min_distance = distance
-                        best_position = new_vehicle_rect
+                new_vehicle_rect_proposal = (cx, cy, panjang_kendaraan, lebar_kendaraan)
+                if not check_overlap(new_vehicle_rect_proposal, placed_vehicles):
+                    valid_candidate_positions.append(new_vehicle_rect_proposal)
+        
+        # Dari kandidat yang valid, pilih yang paling optimal
+        for proposed_rect in valid_candidate_positions:
+            temp_placed = copy.deepcopy(placed_vehicles)
+            temp_placed.append({'tipe': vehicle_type, 'rect': proposed_rect})
+            
+            cg_x, cg_y = calculate_combined_cg(temp_placed)
+            distance = np.sqrt((cg_x - ship_balance_point[0])**2 + (cg_y - ship_balance_point[1])**2)
+            
+            if distance < min_distance:
+                min_distance = distance
+                best_position = proposed_rect
         
         if best_position:
             # Tempatkan kendaraan jika posisi terbaik ditemukan
             placed_vehicles.append({'tipe': vehicle_type, 'rect': best_position, 'id': i})
             
-            # Hasilkan titik kandidat baru berdasarkan posisi kendaraan yang baru ditempatkan.
-            # Ini menciptakan 'celah' di sebelah kanan dan di atas kendaraan yang ditempatkan,
-            # membantu algoritma menemukan ruang yang baru tersedia.
+            # Hasilkan titik kandidat baru dari sudut kendaraan yang baru ditempatkan
             vx, vy, vw, vh = best_position
             
             newly_generated_points = []
+            newly_generated_points.append((vx + vw, vy)) # Sudut kanan atas
+            newly_generated_points.append((vx, vy + vh)) # Sudut kiri bawah
+
+            # Gabungkan dan saring titik kandidat
+            unique_candidate_points = set(candidate_points) # Mulai dengan yang sudah ada
             
-            # Titik di sebelah kanan kendaraan yang ditempatkan
-            new_right_point = (vx + vw, vy)
-            if new_right_point[0] <= ship_length: # Menggunakan <= untuk mengizinkan penempatan pas di ujung
-                newly_generated_points.append(new_right_point)
-            
-            # Titik di atas kendaraan yang ditempatkan
-            new_above_point = (vx, vy + vh)
-            if new_above_point[1] <= ship_width: # Menggunakan <= untuk mengizinkan penempatan pas di ujung
-                newly_generated_points.append(new_above_point)
-            
-            # Gabungkan titik kandidat yang ada dengan yang baru dihasilkan.
-            # Penting untuk memfilter duplikat dan titik yang sekarang berada di dalam
-            # kendaraan yang sudah ditempatkan untuk efisiensi.
-            unique_candidate_points = set()
-            
-            # Tambahkan kandidat yang valid (belum ditempati dan dalam batas kapal) dari daftar yang ada
-            for cp in candidate_points:
-                is_inside_placed = False
-                for pv in placed_vehicles:
-                    px, py, pw, ph = pv['rect']
-                    # Memeriksa apakah titik kandidat berada di dalam kendaraan yang ditempatkan
-                    if px <= cp[0] < px + pw and py <= cp[1] < py + ph:
-                        is_inside_placed = True
-                        break
-                if not is_inside_placed and 0 <= cp[0] <= ship_length and 0 <= cp[1] <= ship_width:
-                    unique_candidate_points.add(cp)
-            
-            # Tambahkan titik baru yang dihasilkan jika valid dan belum ditempati
             for ncp in newly_generated_points:
-                is_inside_placed = False
-                for pv in placed_vehicles:
-                    px, py, pw, ph = pv['rect']
-                    if px <= ncp[0] < px + pw and py <= ncp[1] < py + ph:
-                        is_inside_placed = True
-                        break
-                if not is_inside_placed and 0 <= ncp[0] <= ship_length and 0 <= ncp[1] <= ship_width:
-                    unique_candidate_points.add(ncp)
+                # Hanya tambahkan jika di dalam batas kapal dan tidak tumpang tindih dengan kendaraan yang sudah ada
+                if 0 <= ncp[0] <= ship_length and 0 <= ncp[1] <= ship_width:
+                    is_inside_placed = False
+                    for pv in placed_vehicles:
+                        px, py, pw, ph = pv['rect']
+                        # Jika titik kandidat berada dalam (atau di batas) kendaraan yang ditempatkan, jangan tambahkan
+                        if px <= ncp[0] < px + pw and py <= ncp[1] < py + ph:
+                            is_inside_placed = True
+                            break
+                    if not is_inside_placed:
+                        unique_candidate_points.add(ncp)
             
             candidate_points = list(unique_candidate_points)
-            # Sortir untuk konsistensi, ini dapat memengaruhi perilaku greedy sedikit
+            # Sortir untuk konsistensi (membantu stabilitas algoritma greedy)
             candidate_points.sort(key=lambda p: (p[0], p[1]))
 
         else:
@@ -154,8 +143,6 @@ def visualize_placement(ship_dims, ship_balance_point, placed_vehicles):
     ship_length, ship_width = ship_dims
     
     # Mengatur ukuran figure agar responsif dan proporsional.
-    # Lebar plot ditetapkan 12 inci, dan tinggi disesuaikan untuk mempertahankan rasio aspek kapal,
-    # dengan tinggi minimum 6 inci untuk memastikan visibilitas.
     fig, ax = plt.subplots(figsize=(12, max(6, ship_width / ship_length * 12))) 
     
     # Menggambar dek kapal sebagai persegi panjang
@@ -247,7 +234,8 @@ if st.session_state.last_params != current_params:
         with st.spinner("Mensimulasikan ulang penempatan..."):
             ship_dims = (ship_length, ship_width)
             ship_balance_point = (balance_point_x, balance_point_y)
-            placed, unplaced = find_optimal_placement(ship_dims, ship_balance_point, st.session_state.vehicles_to_load)
+            # Pastikan find_optimal_placement menerima salinan untuk menghindari modifikasi langsung
+            placed, unplaced = find_optimal_placement(ship_dims, ship_balance_point, list(st.session_state.vehicles_to_load))
             st.session_state.simulation_result = (placed, unplaced)
     else:
         st.session_state.simulation_result = ([], []) # Reset hasil jika daftar kendaraan kosong
