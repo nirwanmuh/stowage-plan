@@ -97,33 +97,39 @@ def update_vehicle_placement(ship_dims, ship_balance_point, new_vehicle_type, cu
 
 
 def find_placement_for_single_vehicle(ship_dims, ship_balance_point, vehicle_type_to_add, current_placed_vehicles):
-    """
-    Mencari posisi optimal untuk satu kendaraan baru ke dalam dek yang sudah berisi.
-    Menggunakan logika yang sama dengan yang sebelumnya, tetapi hanya untuk satu kendaraan.
-    """
     ship_length, ship_width = ship_dims
-    
-    # Hasilkan semua titik kandidat dari sudut kendaraan yang sudah ada.
+    panjang_kendaraan, lebar_kendaraan = VEHICLE_DATA["dimensi"][vehicle_type_to_add]
+
+    # --- Kasus kendaraan pertama: langsung taruh di tengah (COG) ---
+    if not current_placed_vehicles:
+        center_x = ship_balance_point[0] - panjang_kendaraan / 2
+        center_y = ship_balance_point[1] - lebar_kendaraan / 2
+
+        # Koreksi agar tidak keluar batas kapal
+        center_x = max(0, min(center_x, ship_length - panjang_kendaraan))
+        center_y = max(0, min(center_y, ship_width - lebar_kendaraan))
+
+        return (center_x, center_y, panjang_kendaraan, lebar_kendaraan)
+
+    # --- Kalau sudah ada kendaraan, pakai logika kandidat seperti biasa ---
     candidate_points = [(0, 0)]
     for pv in current_placed_vehicles:
         vx, vy, vw, vh = pv['rect']
         candidate_points.append((vx + vw, vy))
         candidate_points.append((vx, vy + vh))
-    
-    # Filter titik-titik kandidat untuk memastikan berada di dalam batas kapal
+
+    # Filter kandidat dalam batas
     unique_candidate_points = set()
     for p in candidate_points:
         if 0 <= p[0] <= ship_length and 0 <= p[1] <= ship_width:
-             unique_candidate_points.add(p)
+            unique_candidate_points.add(p)
     candidate_points = list(unique_candidate_points)
     candidate_points.sort(key=lambda p: (p[0], p[1]))
-    
-    panjang_kendaraan, lebar_kendaraan = VEHICLE_DATA["dimensi"][vehicle_type_to_add]
+
     best_position = None
     min_distance = float('inf')
-    
     valid_candidate_positions = []
-    
+
     for cx, cy in candidate_points:
         if cx + panjang_kendaraan <= ship_length and cy + lebar_kendaraan <= ship_width:
             new_vehicle_rect_proposal = (cx, cy, panjang_kendaraan, lebar_kendaraan)
@@ -133,14 +139,14 @@ def find_placement_for_single_vehicle(ship_dims, ship_balance_point, vehicle_typ
     for proposed_rect in valid_candidate_positions:
         temp_placed = copy.deepcopy(current_placed_vehicles)
         temp_placed.append({'tipe': vehicle_type_to_add, 'rect': proposed_rect})
-        
+
         cg_x, cg_y = calculate_combined_cg(temp_placed)
         distance = np.sqrt((cg_x - ship_balance_point[0])**2 + (cg_y - ship_balance_point[1])**2)
-        
+
         if distance < min_distance:
             min_distance = distance
             best_position = proposed_rect
-            
+
     return best_position
 
 def find_initial_optimal_placement(ship_dims, ship_balance_point, vehicles_to_load_original):
